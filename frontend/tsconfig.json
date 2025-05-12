@@ -1,6 +1,6 @@
 {
   "compilerOptions": {
-    "types": ["vite/client", "@twa-dev/types"]
+    "types": ["vite/client", "node", "@twa-dev/types"]
   },
   "files": [],
   "references": [

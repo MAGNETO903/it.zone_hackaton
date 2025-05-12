@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 // Import necessary icons
 import { PlusCircle, Trash, Menu, X, Send, Share2, Copy, Edit2, Check, Info } from 'react-feather'; // Added Info
 // Import SSE parser
-import { createParser, ParsedEvent, ReconnectInterval } from 'eventsource-parser';
+import { createParser, type ParsedEvent, type ReconnectInterval } from 'eventsource-parser'; // <-- ИСПРАВЛЕНО
 // Import Markdown renderer
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
