@@ -10,6 +10,10 @@ WORKDIR /app
 
 # 3. Установка зависимостей ОС (если нужны, например, для сборки некоторых Python пакетов)
 # RUN apt-get update && apt-get install -y --no-install-recommends gcc
+# --- ДОБАВЬ ЭТИ СТРОКИ ---
+# Установка git, который нужен для pip install зависимостей из git репозиториев
+RUN apt-get update && apt-get install -y --no-install-recommends git
+# -------------------------
 
 # 4. Копирование файла зависимостей и установка Python пакетов
 # Сначала копируем только requirements.txt, чтобы использовать кеширование Docker слоев.

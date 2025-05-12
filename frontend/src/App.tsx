@@ -73,10 +73,13 @@ declare global {
 }
 
 
-// App Props Interface (optional, for Telegram WebApp integration)
+import type { WebApp } from '@twa-dev/types'; // <--- Убедись, что этот импорт есть
+
+// Интерфейс для пропсов App
 interface AppProps {
-    // telegram prop is no longer strictly needed for theme as hook uses window.Telegram
+    telegram?: WebApp; // <--- УБЕДИСЬ, ЧТО 'telegram' здесь есть и опционален (?)
 }
+//
 
 // Backend URL
 //const BACKEND_URL = 'https://951f-79-127-206-187.ngrok-free.app'; // Your Ngrok URL
