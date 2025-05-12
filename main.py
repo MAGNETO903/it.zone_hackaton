@@ -152,42 +152,41 @@ async def stream_llm_response(model: str, messages: List[Dict[str, str]]):
 
             if content is not None:
                 print(f"[BACKEND LOG 4] Yielding token: {content!r}")
-                # --- MODIFICATION: Encode string to UTF-8 bytes before yield ---
-                sse_data_line = f"data: {json.dumps({'token': content})}\n\n"
+                # --- MODIFICATION: Added ensure_ascii=False ---
+                sse_data_line = f"data: {json.dumps({'token': content}, ensure_ascii=False)}\n\n"
                 yield sse_data_line.encode('utf-8')
-                # -------------------------------------------------------------
+                # ---------------------------------------------
                 # await asyncio.sleep(0.01)
 
         if not stream_entered:
              print("!!! [BACKEND LOG 5] WARNING: Async stream loop was NOT entered. Stream might be empty or closed immediately.")
 
         print(f"[BACKEND LOG 6] Async Stream loop finished for model: {model}")
-        # --- MODIFICATION: Encode string to UTF-8 bytes before yield ---
+        # --- MODIFICATION: No json.dumps here, so ensure_ascii not applicable ---
         sse_end_event = f"event: end\ndata: {{}}\n\n"
         yield sse_end_event.encode('utf-8')
         # -------------------------------------------------------------
 
     except openai.APIError as e:
          print(f"!!! Groq API error during async stream: {e}")
-         error_message = str(e)
-         if hasattr(e, 'message') and e.message: error_message = e.message # Check if message is not None
+         # --- MODIFICATION: Use repr(e) for potentially safer string conversion ---
+         error_message = repr(e)
+         if hasattr(e, 'message') and e.message: error_message = e.message
          elif hasattr(e, 'body') and isinstance(e.body, dict) and 'message' in e.body: error_message = e.body['message']
          status_code = getattr(e, 'status_code', 500)
-         error_payload = json.dumps({'error': f'Ошибка API Groq: {error_message}', 'status_code': status_code})
-         # --- MODIFICATION: Encode string to UTF-8 bytes before yield ---
+         # --- MODIFICATION: Added ensure_ascii=False ---
+         error_payload = json.dumps({'error': f'Ошибка API Groq: {error_message}', 'status_code': status_code}, ensure_ascii=False)
          sse_error_event = f"event: error\ndata: {error_payload}\n\n"
          yield sse_error_event.encode('utf-8')
-         # -------------------------------------------------------------
          print(f"Sent SSE error event: {error_payload}")
 
     except Exception as e:
          print(f"!!! An unexpected error occurred during async stream: {e}")
-         error_payload_dict = {'error': f'Внутренняя ошибка сервера при стриминге: {str(e)}'}
-         error_payload = json.dumps(error_payload_dict) # Ensure str(e) is correctly placed
-         # --- MODIFICATION: Encode string to UTF-8 bytes before yield ---
+         # --- MODIFICATION: Use repr(e) and ensure_ascii=False ---
+         error_payload_dict = {'error': f'Внутренняя ошибка сервера при стриминге: {repr(e)}'}
+         error_payload = json.dumps(error_payload_dict, ensure_ascii=False)
          sse_generic_error_event = f"event: error\ndata: {error_payload}\n\n"
          yield sse_generic_error_event.encode('utf-8')
-         # -------------------------------------------------------------
          print(f"Sent SSE generic error event: {error_payload}")
 
 
@@ -200,12 +199,10 @@ async def handle_chat_streaming(chat_request: ChatRequest = Body(...)):
     print(f"Received chat request for model: {chat_request.model}")
     messages_for_api = [msg.model_dump() for msg in chat_request.messages]
 
-    # --- MODIFICATION: Added charset=utf-8 to media_type ---
     return StreamingResponse(
         stream_llm_response(chat_request.model, messages_for_api),
         media_type="text/event-stream; charset=utf-8"
     )
-    # -------------------------------------------------------
 
 # --- Server Run ---
 if __name__ == "__main__":
