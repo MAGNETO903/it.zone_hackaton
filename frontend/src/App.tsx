@@ -29,7 +29,9 @@ interface Dialogue {
 // AppProps interface removed as it's empty and App takes no props
 
 // Backend URL - Now attempts to read from window.__BACKEND_URL__ injected by Docker/Nginx
-const BACKEND_URL = (window as any).__BACKEND_URL__ || 'http://localhost:8000';
+const BACKEND_URL = window.__BACKEND_URL__ && window.__BACKEND_URL__ !== "__VITE_BACKEND_URL_PLACEHOLDER__"
+    ? window.__BACKEND_URL__
+    : 'http://localhost:8000/fallback'; // Запасной URL на случай, если что-то пошло не так
 
 
 // NGROK Header
