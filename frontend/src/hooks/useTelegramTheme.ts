@@ -1,24 +1,17 @@
 // src/hooks/useTelegramTheme.ts
 import { useEffect } from 'react';
+import type { ThemeParams, HeaderColorKey } from '@twa-dev/types';
 
-// Интерфейс для themeParams (можно расширить при необходимости)
-interface TelegramThemeParams {
-    bg_color?: string;
-    text_color?: string;
-    hint_color?: string;
-    link_color?: string;
-    button_color?: string;
-    button_text_color?: string;
-    secondary_bg_color?: string;
-    header_bg_color?: string; // Добавим, если есть
-    section_bg_color?: string; // Добавим, если есть
-    destructive_text_color?: string; // Добавим, если есть
-    // ... добавь другие параметры, которые используешь, если они есть в themeParams
-}
-
-// Функция для преобразования ключа из themeParams в имя CSS-переменной
-// Например, 'bg_color' -> '--tg-theme-bg-color'
 const toCssVarName = (key: string): string => `--tg-theme-${key.replace(/_/g, '-')}`;
+
+// Helper to check if a string is a valid hex color
+const isValidHexColor = (color: string): color is `#${string}` => /^#[0-9A-Fa-f]{3}$|^#[0-9A-Fa-f]{6}$/.test(color);
+
+// Helper to check if a string is a valid HeaderColorKey
+const isValidHeaderColorKey = (key: string): key is HeaderColorKey => {
+    return ['bg_color', 'secondary_bg_color'].includes(key);
+};
+
 
 export const useTelegramTheme = () => {
     useEffect(() => {
@@ -26,9 +19,7 @@ export const useTelegramTheme = () => {
 
         if (!tg) {
             console.warn('Telegram WebApp API not found. Theme adaptation disabled.');
-            // Можно установить дефолтные значения для CSS переменных, если API недоступно
-            // Например, для разработки в браузере без Telegram
-            const defaultTheme: TelegramThemeParams = {
+            const defaultTheme: Partial<ThemeParams> = { // Use Partial<ThemeParams> for default
                 bg_color: '#ffffff',
                 text_color: '#000000',
                 hint_color: '#999999',
@@ -43,46 +34,57 @@ export const useTelegramTheme = () => {
                     document.documentElement.style.setProperty(toCssVarName(key), value);
                 }
             });
+            document.body.className = 'light'; // Default body class
             return;
         }
 
-        const applyThemeParams = (params: TelegramThemeParams) => {
+        const applyThemeParams = (params: ThemeParams) => {
             console.log('Applying Telegram Theme Params:', params);
             Object.entries(params).forEach(([key, value]) => {
                 if (value) {
                     document.documentElement.style.setProperty(toCssVarName(key), value);
                 }
             });
+            document.body.className = tg.colorScheme || 'light';
 
-            // Дополнительно: цвет шапки Mini App
-            // Telegram может не предоставлять все цвета, проверяем наличие
             if (params.header_bg_color) {
-                tg.setHeaderColor(params.header_bg_color as any); // 'as any' для обхода строгости типов если это кастомный параметр
-            } else if (params.secondary_bg_color) {
-                 // Как запасной вариант, можно использовать secondary_bg_color или bg_color
-                 // tg.setHeaderColor(params.secondary_bg_color);
+                if (isValidHexColor(params.header_bg_color)) {
+                    tg.setHeaderColor(params.header_bg_color);
+                } else if (isValidHeaderColorKey(params.header_bg_color)) {
+                    // If it's a key like "bg_color", TWA will resolve it to the actual color
+                    tg.setHeaderColor(params.header_bg_color);
+                } else {
+                    console.warn(`Invalid header_bg_color format: ${params.header_bg_color}.`);
+                     // Fallback logic if needed, e.g., using params.bg_color if it's a valid hex
+                    if (params.bg_color && isValidHexColor(params.bg_color)) {
+                       tg.setHeaderColor(params.bg_color);
+                    }
+                }
+            } else if (params.secondary_bg_color && isValidHexColor(params.secondary_bg_color)) {
+                // Fallback to secondary_bg_color if header_bg_color is not set or invalid
+                // tg.setHeaderColor(params.secondary_bg_color);
             }
 
-            // Цвет фона всего Mini App (за пределами видимой области)
-            if (params.bg_color) {
+
+            if (params.bg_color && isValidHexColor(params.bg_color)) {
                 tg.setBackgroundColor(params.bg_color);
+            } else {
+                console.warn(`Invalid bg_color for setBackgroundColor: ${params.bg_color}`);
             }
         };
 
-        // Применить текущую тему при монтировании
-        applyThemeParams(tg.themeParams as TelegramThemeParams);
+        applyThemeParams(tg.themeParams);
+        tg.ready(); // Inform Telegram the app is ready
 
-        // Подписаться на событие изменения темы
         const themeChangedHandler = () => {
             console.log('Telegram theme changed.');
-            applyThemeParams(tg.themeParams as TelegramThemeParams);
+            applyThemeParams(tg.themeParams);
         };
 
         tg.onEvent('themeChanged', themeChangedHandler);
 
-        // Отписаться при размонтировании компонента
         return () => {
             tg.offEvent('themeChanged', themeChangedHandler);
         };
-    }, []); // Пустой массив зависимостей, чтобы хук выполнился один раз при монтировании
+    }, []);
 };

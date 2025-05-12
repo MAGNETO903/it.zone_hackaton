@@ -3,7 +3,8 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 // Import necessary icons
 import { PlusCircle, Trash, Menu, X, Send, Share2, Copy, Edit2, Check, Info } from 'react-feather';
 // Import SSE parser
-import { createParser, type ParsedEvent, type ReconnectInterval } from 'eventsource-parser';
+import { createParser } from 'eventsource-parser'; // Import createParser directly
+import type { ParsedEvent as ESParsedEvent, ReconnectInterval as ESReconnectInterval } from 'eventsource-parser'; // Import types separately with aliases
 // Import Markdown renderer
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -26,8 +27,7 @@ interface Dialogue {
     systemPrompt?: string;
 }
 
-// App Props Interface is now empty as telegram prop is removed
-interface AppProps {}
+// AppProps interface removed as it's empty and App takes no props
 
 // Backend URL - Now attempts to read from window.__BACKEND_URL__ injected by Docker/Nginx
 const BACKEND_URL = (window as any).__BACKEND_URL__ || 'http://localhost:8000';
@@ -42,7 +42,7 @@ const LS_ACTIVE_ID_KEY = 'activeDialogueId_v1';
 const LS_MODEL_KEY = 'selectedLlmModel_v1';
 
 
-function App() { // Removed props from function signature
+function App() { // No props
     useTelegramTheme();
 
     // --- STATE MANAGEMENT ---
@@ -213,7 +213,7 @@ function App() { // Removed props from function signature
             const reader = response.body.getReader();
             const decoder = new TextDecoder();
 
-            const handleParserEvent = (event: ParsedEvent | ReconnectInterval) => {
+            const handleParserEvent = (event: ESParsedEvent | ESReconnectInterval) => { // Use aliased types
                 console.log("--- [FRONTEND LOG 0] Entering handleParserEvent ---", event);
 
                 if (event.type === 'event' && event.event === 'error') {
@@ -238,66 +238,64 @@ function App() { // Removed props from function signature
                     return;
                 }
 
-                if ('data' in event) {
+                if ('data' in event && event.data) { // Ensure data exists and is not null/undefined
                     const eventData = event.data;
                     console.log("[FRONTEND LOG B] Raw data found:", eventData);
-                    if (eventData) {
-                        try {
-                            const parsedData = JSON.parse(eventData);
-                            console.log("[FRONTEND LOG C] Parsed data:", parsedData);
+                    try {
+                        const parsedData = JSON.parse(eventData);
+                        console.log("[FRONTEND LOG C] Parsed data:", parsedData);
 
-                            if (parsedData && typeof parsedData.token === 'string') {
-                                const token = parsedData.token;
-                                console.log(">>> [FRONTEND LOG D] Token found:", token);
-                                currentAccumulatedContent += token;
+                        if (parsedData && typeof parsedData.token === 'string') {
+                            const token = parsedData.token;
+                            console.log(">>> [FRONTEND LOG D] Token found:", token);
+                            currentAccumulatedContent += token;
 
-                                const currentStreamingId = streamingDialogueIdRef.current;
-                                if (!currentStreamingId) {
-                                    console.warn("StreamingDialogueIdRef is null inside handleParserEvent, skipping state update for token.");
-                                    return;
-                                }
-                                setDialogues(prevDialogues => {
-                                    return prevDialogues.map(dialogue => {
-                                        if (dialogue.id === currentStreamingId) {
-                                            const updatedMessages = [...dialogue.messages];
-                                            const lastMessageIndex = updatedMessages.length - 1;
-                                            if (lastMessageIndex >= 0 && updatedMessages[lastMessageIndex].role === 'assistant') {
-                                                updatedMessages[lastMessageIndex] = {
-                                                    ...updatedMessages[lastMessageIndex],
-                                                    content: currentAccumulatedContent
-                                                };
-                                                return { ...dialogue, messages: updatedMessages };
-                                            } else {
-                                                console.warn(`[setDialogues update] Last message mismatch for dialogue ${currentStreamingId}. Expected assistant placeholder at index ${lastMessageIndex}. Found:`, updatedMessages[lastMessageIndex]);
-                                            }
+                            const currentStreamingId = streamingDialogueIdRef.current;
+                            if (!currentStreamingId) {
+                                console.warn("StreamingDialogueIdRef is null inside handleParserEvent, skipping state update for token.");
+                                return;
+                            }
+                            setDialogues(prevDialogues => {
+                                return prevDialogues.map(dialogue => {
+                                    if (dialogue.id === currentStreamingId) {
+                                        const updatedMessages = [...dialogue.messages];
+                                        const lastMessageIndex = updatedMessages.length - 1;
+                                        if (lastMessageIndex >= 0 && updatedMessages[lastMessageIndex].role === 'assistant') {
+                                            updatedMessages[lastMessageIndex] = {
+                                                ...updatedMessages[lastMessageIndex],
+                                                content: currentAccumulatedContent
+                                            };
+                                            return { ...dialogue, messages: updatedMessages };
+                                        } else {
+                                            console.warn(`[setDialogues update] Last message mismatch for dialogue ${currentStreamingId}. Expected assistant placeholder at index ${lastMessageIndex}. Found:`, updatedMessages[lastMessageIndex]);
                                         }
-                                        return dialogue;
-                                    });
+                                    }
+                                    return dialogue;
                                 });
-                            } else {
-                                console.log("[FRONTEND LOG E] No token found in parsed data:", parsedData);
-                            }
-                        } catch (parseError) {
-                            console.error("[FRONTEND LOG F] Error parsing JSON data in handleParserEvent:", parseError, "Raw data:", eventData);
-                            setError("Ошибка обработки данных от сервера.");
-                            if (abortControllerRef.current && !abortControllerRef.current.signal.aborted) {
-                                 abortControllerRef.current.abort("SSE JSON Parsing Error");
-                                 setIsLoading(false);
-                            }
+                            });
+                        } else {
+                            console.log("[FRONTEND LOG E] No token found in parsed data:", parsedData);
                         }
-                    } else {
-                        console.log("[FRONTEND LOG H] Event has 'data' field, but it is empty or null.");
+                    } catch (parseError) {
+                        console.error("[FRONTEND LOG F] Error parsing JSON data in handleParserEvent:", parseError, "Raw data:", eventData);
+                        setError("Ошибка обработки данных от сервера.");
+                        if (abortControllerRef.current && !abortControllerRef.current.signal.aborted) {
+                             abortControllerRef.current.abort("SSE JSON Parsing Error");
+                             setIsLoading(false);
+                        }
                     }
                 } else if (event.type === 'reconnect-interval') {
                     console.log('[handleParserEvent] Received reconnect-interval event:', event.value);
-                } else {
+                } else if ('data' in event && !event.data) {
+                     console.log("[FRONTEND LOG H] Event has 'data' field, but it is empty or null.");
+                }
+                 else {
                     console.warn("[handleParserEvent] Unexpected event structure received (no specific event name, no 'data' field, not reconnect-interval):", event);
                 }
             };
 
-            const parser = createParser({
-                onEvent: handleParserEvent
-            });
+            const parser = createParser(handleParserEvent as any); // Use as any if type conflict persists with ESParsedEvent union
+
             while (true) {
                 if (signal.aborted) {
                      console.log("Signal aborted detected in read loop.");
