@@ -1,16 +1,15 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
-import './index.css'; // Или другие стили
+import './index.css'; // Or other global styles
 
-// Получаем объект Telegram WebApp
-const tg = window.Telegram.WebApp;
+// The useTelegramTheme hook now handles tg.ready() and accesses window.Telegram.WebApp directly.
+// So, we don't need to get `tg` here or pass it as a prop.
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <App telegram={tg} /> {/* Передаем объект tg в App */}
+    <App /> {/* Render App without telegram prop */}
   </React.StrictMode>,
 );
 
-// Сообщаем Telegram, что приложение готово
-tg.ready();
+// tg.ready() is now called within the useTelegramTheme hook after initial theme application.

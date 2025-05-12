@@ -1,78 +1,35 @@
 // --- START OF FILE App.tsx ---
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 // Import necessary icons
-import { PlusCircle, Trash, Menu, X, Send, Share2, Copy, Edit2, Check, Info } from 'react-feather'; // Added Info
+import { PlusCircle, Trash, Menu, X, Send, Share2, Copy, Edit2, Check, Info } from 'react-feather';
 // Import SSE parser
-import { createParser, type ParsedEvent, type ReconnectInterval } from 'eventsource-parser'; // <-- ИСПРАВЛЕНО
+import { createParser, type ParsedEvent, type ReconnectInterval } from 'eventsource-parser';
 // Import Markdown renderer
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import './App.css';
-import { useTelegramTheme } from './hooks/useTelegramTheme'; // <--- IMPORT THE CUSTOM HOOK
+import { useTelegramTheme } from './hooks/useTelegramTheme';
 
 // Interface for a single chat message
 interface ChatMessage {
-    role: 'user' | 'assistant' | 'system'; // Added system role
+    role: 'user' | 'assistant' | 'system';
     content: string;
 }
 
 // Interface for a dialogue/chat session
 interface Dialogue {
-    id: string; // Unique ID for the dialogue
-    title: string; // Title of the chat (e.g., first user message)
-    messages: ChatMessage[]; // Array of messages in this dialogue
-    createdAt: number; // Timestamp for sorting or info
-    modelUsed?: string; // Store the model used when the chat was created/last used (optional)
-    systemPrompt?: string; // NEW: For system-level instructions
+    id: string;
+    title: string;
+    messages: ChatMessage[];
+    createdAt: number;
+    modelUsed?: string;
+    systemPrompt?: string;
 }
 
-// Telegram WebApp interface (simplified)
-interface TelegramWebApp {
-    initData: string;
-    initDataUnsafe: object;
-    themeParams: { [key: string]: string };
-    colorScheme: 'light' | 'dark';
-    MainButton: {
-        text: string;
-        color: string;
-        textColor: string;
-        isVisible: boolean;
-        isActive: boolean;
-        isProgressVisible: boolean;
-        setText: (text: string) => void;
-        onClick: (callback: () => void) => void;
-        show: () => void;
-        hide: () => void;
-        enable: () => void;
-        disable: () => void;
-        showProgress: (disableButton?: boolean) => void;
-        hideProgress: () => void;
-        setParams: (params: object) => void;
-    };
-    BackButton: {
-        isVisible: boolean;
-        onClick: (callback: () => void) => void;
-        show: () => void;
-        hide: () => void;
-    };
-    onEvent: (eventType: string, eventHandler: () => void) => void;
-    offEvent: (eventType: string, eventHandler: () => void) => void;
-    setHeaderColor: (color: string) => void; // Added for the hook
-    setBackgroundColor: (color: string) => void; // Added for the hook
-    ready: () => void; // Added for the hook
-    // ... other Telegram WebApp properties and methods
-}
+// App Props Interface is now empty as telegram prop is removed
+interface AppProps {}
 
-
-
-// App Props Interface (optional, for Telegram WebApp integration)
-interface AppProps {
-    // telegram prop is no longer strictly needed for theme as hook uses window.Telegram
-}
-
-// Backend URL
-//const BACKEND_URL = 'https://951f-79-127-206-187.ngrok-free.app'; // Your Ngrok URL
-
+// Backend URL - Now attempts to read from window.__BACKEND_URL__ injected by Docker/Nginx
 const BACKEND_URL = (window as any).__BACKEND_URL__ || 'http://localhost:8000';
 
 
@@ -85,8 +42,8 @@ const LS_ACTIVE_ID_KEY = 'activeDialogueId_v1';
 const LS_MODEL_KEY = 'selectedLlmModel_v1';
 
 
-function App({}: AppProps) { // Removed telegram prop as it's not used by the hook directly
-    useTelegramTheme(); // <--- CALL THE CUSTOM HOOK
+function App() { // Removed props from function signature
+    useTelegramTheme();
 
     // --- STATE MANAGEMENT ---
     const [dialogues, setDialogues] = useState<Dialogue[]>([]);
@@ -196,9 +153,6 @@ function App({}: AppProps) { // Removed telegram prop as it's not used by the ho
         };
     }, []);
 
-    // REMOVED the old Telegram Theme Integration useEffect as it's now handled by useTelegramTheme hook
-
-
     // --- ACTION HANDLERS ---
 
     const stopStreaming = useCallback(() => {
@@ -211,7 +165,6 @@ function App({}: AppProps) { // Removed telegram prop as it's not used by the ho
                  if (d.id === activeDialogueId) {
                       const msgs = d.messages;
                       const lastAssistantIndex = msgs.map(m => m.role).lastIndexOf('assistant');
-                      // Only remove if it's truly empty (placeholder)
                       if (lastAssistantIndex !== -1 && msgs[lastAssistantIndex].content === '') {
                            console.log("Removing empty placeholder on stopStreaming");
                            return { ...d, messages: msgs.slice(0, lastAssistantIndex) };
@@ -250,7 +203,7 @@ function App({}: AppProps) { // Removed telegram prop as it's not used by the ho
             });
 
             if (!response.ok) {
-                const errorText = await response.text().catch(() => `Status: ${response.status}`); // Try getting text, fallback to status
+                const errorText = await response.text().catch(() => `Status: ${response.status}`);
                 throw new Error(`Ошибка сети: ${response.status} ${response.statusText} - ${errorText}`);
             }
             if (!response.body) {
@@ -260,9 +213,8 @@ function App({}: AppProps) { // Removed telegram prop as it's not used by the ho
             const reader = response.body.getReader();
             const decoder = new TextDecoder();
 
-            // Define the handler function that will process events from the parser
             const handleParserEvent = (event: ParsedEvent | ReconnectInterval) => {
-                console.log("--- [FRONTEND LOG 0] Entering handleParserEvent ---", event); // Log entry
+                console.log("--- [FRONTEND LOG 0] Entering handleParserEvent ---", event);
 
                 if (event.type === 'event' && event.event === 'error') {
                     console.log("[handleParserEvent] Processing 'error' event");
@@ -401,7 +353,7 @@ function App({}: AppProps) { // Removed telegram prop as it's not used by the ho
              streamingDialogueIdRef.current = null;
              console.log("Cleared streamingDialogueIdRef in finally.");
         }
-    }, [selectedModel, BACKEND_URL, setIsLoading, setError, setDialogues, setExportLink, setCopySuccess]);
+    }, [selectedModel, setIsLoading, setError, setDialogues, setExportLink, setCopySuccess]);
 
 
     const sendMessage = useCallback(async () => {
@@ -503,7 +455,6 @@ function App({}: AppProps) { // Removed telegram prop as it's not used by the ho
             );
 
         historyUpToEditedWithEdit.forEach(msg => {
-            // Ensure role is correctly typed for ChatMessage
             messagesForApi.push({ role: msg.role as 'user' | 'assistant' | 'system', content: msg.content });
         });
 
@@ -550,7 +501,7 @@ function App({}: AppProps) { // Removed telegram prop as it's not used by the ho
             title: `Новый чат ${dialogues.length + 1}`,
             messages: [],
             createdAt: Date.now(),
-            systemPrompt: undefined, // Initialize systemPrompt
+            systemPrompt: undefined,
             modelUsed: selectedModel || undefined
         };
 
@@ -704,13 +655,12 @@ function App({}: AppProps) { // Removed telegram prop as it's not used by the ho
         if (!currentDialogue || !activeDialogueId) return;
 
         const currentSystemPrompt = currentDialogue.systemPrompt || '';
-        // Using prompt for simplicity as per suggestion. A modal would be better UX.
         const newSystemPrompt = prompt(
             "Введите системный промпт для этого чата (оставьте пустым, чтобы удалить):",
             currentSystemPrompt
         );
 
-        if (newSystemPrompt !== null) { // User didn't press Cancel
+        if (newSystemPrompt !== null) {
             setDialogues(prevDialogues =>
                 prevDialogues.map(d =>
                     d.id === activeDialogueId
@@ -719,7 +669,7 @@ function App({}: AppProps) { // Removed telegram prop as it's not used by the ho
                 )
             );
         }
-    }, [activeDialogueId, dialogues, getActiveDialogue, setDialogues]); // Added dialogues here
+    }, [activeDialogueId, dialogues, getActiveDialogue, setDialogues]);
 
 
     // --- RENDER LOGIC ---
@@ -812,7 +762,7 @@ function App({}: AppProps) { // Removed telegram prop as it's not used by the ho
                             <strong>Сист. промпт:</strong> {currentActiveDialogue.systemPrompt.substring(0, 60)}{currentActiveDialogue.systemPrompt.length > 60 ? '...' : ''}
                         </div>
                      )}
-                     <div className="header-controls"> {/* Wrapper for model selector and system prompt button */}
+                     <div className="header-controls">
                         <div className="model-selector">
                             <select
                                 id="model-select"
@@ -846,7 +796,7 @@ function App({}: AppProps) { // Removed telegram prop as it's not used by the ho
                         const isEditingThisMessage = editingMessageKey === messageKey;
                         const isLastStreamingMessage = index === currentMessages.length - 1 && msg.role === 'assistant' && isLoading;
 
-                        if (msg.role === 'system') return null; // Do not render system messages directly
+                        if (msg.role === 'system') return null;
 
                         return (
                             <div key={messageKey} className={`message ${msg.role} ${isEditingThisMessage ? 'editing' : ''}`}>
