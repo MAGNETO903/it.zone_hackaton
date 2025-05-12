@@ -12,7 +12,10 @@ RUN npm run build
 # --- Стадия раздачи (Serve Stage) ---
 FROM nginx:1.25-alpine
 COPY --from=build /app/dist /usr/share/nginx/html
-# (Опционально) COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+# --- УБЕРИ '#' В НАЧАЛЕ СЛЕДУЮЩЕЙ СТРОКИ ---
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+# --------------------------------------------
 
 # Новый ENTRYPOINT для замены плейсхолдера
 COPY entrypoint.sh /entrypoint.sh
