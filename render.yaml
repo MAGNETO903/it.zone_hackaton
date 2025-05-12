@@ -48,7 +48,7 @@ services:
     repo: https://github.com/MAGNETO903/it.zone_hackaton.git # ЗАМЕНИ!
     # Dockerfile и контекст сборки для фронтенда находятся в папке 'frontend'
     rootDir: ./frontend # Указываем, что корень для этого сервиса - папка 'frontend'
-    dockerfilePath: ./frontend/Dockerfile # Путь к Dockerfile фронтенда относительно rootDir
+    dockerfilePath: Dockerfile # Путь к Dockerfile фронтенда относительно rootDir
 
     plan: free
 
