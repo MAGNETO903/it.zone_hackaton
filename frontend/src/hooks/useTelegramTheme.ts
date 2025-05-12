@@ -1,6 +1,8 @@
 // src/hooks/useTelegramTheme.ts
-import { useEffect } from 'react';
-import type { ThemeParams, HeaderColorKey } from '@twa-dev/types';
+import { useEffect } from 'react'
+import type { ThemeParams } from '@twa-dev/types'
+
+type HeaderColorKey = 'bg_color' | 'secondary_bg_color' // ← добавили
 
 const toCssVarName = (key: string): string => `--tg-theme-${key.replace(/_/g, '-')}`;
 

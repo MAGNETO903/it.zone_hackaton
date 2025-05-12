@@ -3,8 +3,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 // Import necessary icons
 import { PlusCircle, Trash, Menu, X, Send, Share2, Copy, Edit2, Check, Info } from 'react-feather';
 // Import SSE parser
-import { createParser } from 'eventsource-parser'; // Import createParser directly
-import type { ParsedEvent as ESParsedEvent, ReconnectInterval as ESReconnectInterval } from 'eventsource-parser'; // Import types separately with aliases
+import { createParser, type EventSourceMessage } from 'eventsource-parser'; // Updated import
 // Import Markdown renderer
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -213,88 +212,97 @@ function App() { // No props
             const reader = response.body.getReader();
             const decoder = new TextDecoder();
 
-            const handleParserEvent = (event: ESParsedEvent | ESReconnectInterval) => { // Use aliased types
-                console.log("--- [FRONTEND LOG 0] Entering handleParserEvent ---", event);
+            const parser = createParser({
+                onEvent(event: EventSourceMessage) {
+                    console.log("--- [FRONTEND LOG 0] Entering onEvent ---", event);
 
-                if (event.type === 'event' && event.event === 'error') {
-                    console.log("[handleParserEvent] Processing 'error' event");
-                    try {
-                        const errorData = JSON.parse(event.data || '{}');
-                        console.error("SSE Error Event Data:", errorData);
-                        setError(errorData.error || "Ошибка от сервера во время стриминга.");
-                    } catch (parseError) {
-                        console.error("Error parsing SSE error event data:", parseError, "Raw data:", event.data);
-                        setError("Не удалось распознать ошибку от сервера.");
+                    if (event.event === 'error') { // Check for custom 'error' event name
+                        console.log("[onEvent] Processing 'error' event from server");
+                        try {
+                            const errorData = JSON.parse(event.data || '{}');
+                            console.error("SSE Error Event Data:", errorData);
+                            setError(errorData.error || "Ошибка от сервера во время стриминга.");
+                        } catch (parseError) {
+                            console.error("Error parsing SSE error event data:", parseError, "Raw data:", event.data);
+                            setError("Не удалось распознать ошибку от сервера.");
+                        }
+                        setIsLoading(false);
+                        if (abortControllerRef.current && !abortControllerRef.current.signal.aborted) {
+                            abortControllerRef.current.abort("SSE Error Event Received from server");
+                        }
+                        return;
                     }
+
+                    if (event.event === 'end') { // Check for custom 'end' event name
+                        console.log("[onEvent] Processing 'end' event from server");
+                        // This event might signal the backend finished sending.
+                        // The `reader.read()` loop handles the actual stream closing.
+                        return;
+                    }
+
+                    // Handle data chunks (tokens)
+                    // These are typically unnamed events, so event.event might be undefined or 'message'
+                    if (event.data) {
+                        const eventData = event.data;
+                        console.log("[FRONTEND LOG B] Raw data found:", eventData);
+                        try {
+                            const parsedData = JSON.parse(eventData);
+                            console.log("[FRONTEND LOG C] Parsed data:", parsedData);
+
+                            if (parsedData && typeof parsedData.token === 'string') {
+                                const token = parsedData.token;
+                                console.log(">>> [FRONTEND LOG D] Token found:", token);
+                                currentAccumulatedContent += token;
+
+                                const currentStreamingId = streamingDialogueIdRef.current;
+                                if (!currentStreamingId) {
+                                    console.warn("StreamingDialogueIdRef is null inside onEvent, skipping state update for token.");
+                                    return;
+                                }
+                                setDialogues(prevDialogues => {
+                                    return prevDialogues.map(dialogue => {
+                                        if (dialogue.id === currentStreamingId) {
+                                            const updatedMessages = [...dialogue.messages];
+                                            const lastMessageIndex = updatedMessages.length - 1;
+                                            if (lastMessageIndex >= 0 && updatedMessages[lastMessageIndex].role === 'assistant') {
+                                                updatedMessages[lastMessageIndex] = {
+                                                    ...updatedMessages[lastMessageIndex],
+                                                    content: currentAccumulatedContent
+                                                };
+                                                return { ...dialogue, messages: updatedMessages };
+                                            } else {
+                                                console.warn(`[setDialogues update] Last message mismatch for dialogue ${currentStreamingId}. Expected assistant placeholder at index ${lastMessageIndex}. Found:`, updatedMessages[lastMessageIndex]);
+                                            }
+                                        }
+                                        return dialogue;
+                                    });
+                                });
+                            } else {
+                                console.log("[FRONTEND LOG E] No token found in parsed data or not a string:", parsedData);
+                            }
+                        } catch (parseError) {
+                            console.error("[FRONTEND LOG F] Error parsing JSON data in onEvent:", parseError, "Raw data:", eventData);
+                            setError("Ошибка обработки данных от сервера.");
+                            if (abortControllerRef.current && !abortControllerRef.current.signal.aborted) {
+                                 abortControllerRef.current.abort("SSE JSON Parsing Error in onEvent");
+                                 setIsLoading(false);
+                            }
+                        }
+                    } else if (event.event) { // Log other named events without data if any
+                        console.log(`[onEvent] Received named event '${event.event}' without data.`);
+                    }
+                    // Note: 'retry' events are handled by onRetry if defined, or ignored.
+                },
+                onError(err) { // Handles errors from the parser itself
+                    console.error("EventSourceParser internal error:", err);
+                    setError("Ошибка парсера событий от сервера.");
                     setIsLoading(false);
                     if (abortControllerRef.current && !abortControllerRef.current.signal.aborted) {
-                        abortControllerRef.current.abort("SSE Error Event Received");
+                        abortControllerRef.current.abort("EventSourceParser internal error");
                     }
-                    return;
                 }
-
-                if (event.type === 'event' && event.event === 'end') {
-                    console.log("[handleParserEvent] Processing 'end' event");
-                    return;
-                }
-
-                if ('data' in event && event.data) { // Ensure data exists and is not null/undefined
-                    const eventData = event.data;
-                    console.log("[FRONTEND LOG B] Raw data found:", eventData);
-                    try {
-                        const parsedData = JSON.parse(eventData);
-                        console.log("[FRONTEND LOG C] Parsed data:", parsedData);
-
-                        if (parsedData && typeof parsedData.token === 'string') {
-                            const token = parsedData.token;
-                            console.log(">>> [FRONTEND LOG D] Token found:", token);
-                            currentAccumulatedContent += token;
-
-                            const currentStreamingId = streamingDialogueIdRef.current;
-                            if (!currentStreamingId) {
-                                console.warn("StreamingDialogueIdRef is null inside handleParserEvent, skipping state update for token.");
-                                return;
-                            }
-                            setDialogues(prevDialogues => {
-                                return prevDialogues.map(dialogue => {
-                                    if (dialogue.id === currentStreamingId) {
-                                        const updatedMessages = [...dialogue.messages];
-                                        const lastMessageIndex = updatedMessages.length - 1;
-                                        if (lastMessageIndex >= 0 && updatedMessages[lastMessageIndex].role === 'assistant') {
-                                            updatedMessages[lastMessageIndex] = {
-                                                ...updatedMessages[lastMessageIndex],
-                                                content: currentAccumulatedContent
-                                            };
-                                            return { ...dialogue, messages: updatedMessages };
-                                        } else {
-                                            console.warn(`[setDialogues update] Last message mismatch for dialogue ${currentStreamingId}. Expected assistant placeholder at index ${lastMessageIndex}. Found:`, updatedMessages[lastMessageIndex]);
-                                        }
-                                    }
-                                    return dialogue;
-                                });
-                            });
-                        } else {
-                            console.log("[FRONTEND LOG E] No token found in parsed data:", parsedData);
-                        }
-                    } catch (parseError) {
-                        console.error("[FRONTEND LOG F] Error parsing JSON data in handleParserEvent:", parseError, "Raw data:", eventData);
-                        setError("Ошибка обработки данных от сервера.");
-                        if (abortControllerRef.current && !abortControllerRef.current.signal.aborted) {
-                             abortControllerRef.current.abort("SSE JSON Parsing Error");
-                             setIsLoading(false);
-                        }
-                    }
-                } else if (event.type === 'reconnect-interval') {
-                    console.log('[handleParserEvent] Received reconnect-interval event:', event.value);
-                } else if ('data' in event && !event.data) {
-                     console.log("[FRONTEND LOG H] Event has 'data' field, but it is empty or null.");
-                }
-                 else {
-                    console.warn("[handleParserEvent] Unexpected event structure received (no specific event name, no 'data' field, not reconnect-interval):", event);
-                }
-            };
-
-            const parser = createParser(handleParserEvent as any); // Use as any if type conflict persists with ESParsedEvent union
+                // onRetry is not implemented as per instructions
+            });
 
             while (true) {
                 if (signal.aborted) {
@@ -316,7 +324,7 @@ function App() { // No props
                  if (err.name === 'AbortError' || (signal.aborted && (err.message.includes('aborted') || err.message.includes('cancel'))) ) {
                      const reason = signal.reason || err.message || "Aborted";
                      console.log(`Fetch aborted: ${reason}`);
-                     if (reason !== "User aborted" && !reason.startsWith("SSE ") && !reason.startsWith("Starting new request")) {
+                     if (reason !== "User aborted" && !reason.startsWith("SSE ") && !reason.startsWith("Starting new request") && !reason.includes("EventSourceParser")) {
                           setError(`Операция прервана: ${reason}`);
                      }
                  } else {
