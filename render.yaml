@@ -6,7 +6,7 @@ services:
   - type: web # Тип сервиса 'web' подходит для HTTP серверов
     name: llm-chat-backend # Название твоего бэкенд-сервиса на Render
     env: docker # Среда выполнения - Docker
-    repo: https://github.com/ТВОЙ_USERNAME/ТВОЙ_РЕПОЗИТОРИЙ.git # ЗАМЕНИ! Или Render определит автоматически, если .yaml в репо
+    repo: https://github.com/MAGNETO903/it.zone_hackaton.git # ЗАМЕНИ! Или Render определит автоматически, если .yaml в репо
     # Dockerfile для бэкенда находится в корне репозитория
     dockerfilePath: ./Dockerfile # Путь к Dockerfile бэкенда относительно корня репо
     # Контекст сборки Docker для бэкенда - корень репозитория
@@ -45,7 +45,7 @@ services:
   - type: web
     name: llm-chat-frontend # Название твоего фронтенд-сервиса на Render
     env: docker
-    repo: https://github.com/ТВОЙ_USERNAME/ТВОЙ_РЕПОЗИТОРИЙ.git # ЗАМЕНИ!
+    repo: https://github.com/MAGNETO903/it.zone_hackaton.git # ЗАМЕНИ!
     # Dockerfile и контекст сборки для фронтенда находятся в папке 'frontend'
     rootDir: ./frontend # Указываем, что корень для этого сервиса - папка 'frontend'
     dockerfilePath: ./frontend/Dockerfile # Путь к Dockerfile фронтенда относительно rootDir
