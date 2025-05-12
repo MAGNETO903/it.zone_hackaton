@@ -1,0 +1,36 @@
+# it.zone hackaton/docker-compose.yml
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: . # <--- Контекст теперь корень проекта
+      dockerfile: Dockerfile # <--- Dockerfile бэкенда в корне проекта
+    ports:
+      - "8000:8000"
+    environment:
+      # Переменные будут взяты из файла .env в корне проекта или из окружения хоста
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - BASE_EXPORT_URL=${FRONTEND_PUBLIC_URL} # URL, где будет доступен viewer.html (фронтенд)
+      - BACKEND_API_BASE_URL=${BACKEND_PUBLIC_URL} # URL, по которому доступен API бэкенда
+    volumes:
+      # Монтируем код бэкенда для разработки с hot-reload (для продакшена можно убрать)
+      # Обрати внимание на пути, если main.py и templates в корне:
+      - ./main.py:/app/main.py
+      - ./templates:/app/templates
+      - ./requirements.txt:/app/requirements.txt # Если хочешь обновлять зависимости без пересборки (редко нужно)
+    # Если используешь uvicorn с --reload в CMD Dockerfile, то монтирование кода выше позволит видеть изменения.
+    # command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload # Можно переопределить CMD здесь для разработки
+
+  frontend:
+    build:
+      context: ./frontend # <--- Контекст для фронтенда остается ./frontend
+      dockerfile: Dockerfile # Dockerfile фронтенда внутри ./frontend/Dockerfile
+      args:
+        # Этот URL будет "запечен" в статику фронтенда во время сборки образа.
+        # Он должен быть публично доступен из браузера пользователя для обращения к API бэкенда.
+        VITE_BACKEND_URL: ${BACKEND_PUBLIC_URL_FOR_FRONTEND_BUILD}
+    ports:
+      - "5173:80" # Nginx внутри контейнера фронтенда слушает на 80
+    depends_on:
+      - backend # Опционально, если фронтенд как-то зависит от старта бэкенда (обычно SPA не критично)

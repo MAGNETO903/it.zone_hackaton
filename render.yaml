@@ -1,0 +1,66 @@
+# render.yaml
+version: 1
+
+services:
+  # --- Бэкенд Сервис (FastAPI) ---
+  - type: web # Тип сервиса 'web' подходит для HTTP серверов
+    name: llm-chat-backend # Название твоего бэкенд-сервиса на Render
+    env: docker # Среда выполнения - Docker
+    repo: https://github.com/ТВОЙ_USERNAME/ТВОЙ_РЕПОЗИТОРИЙ.git # ЗАМЕНИ! Или Render определит автоматически, если .yaml в репо
+    # Dockerfile для бэкенда находится в корне репозитория
+    dockerfilePath: ./Dockerfile # Путь к Dockerfile бэкенда относительно корня репо
+    # Контекст сборки Docker для бэкенда - корень репозитория
+    # rootDir: . # Можно опустить, если совпадает с корнем репо и dockerfilePath указан от корня
+
+    # План инстанса (можно начать с бесплатного)
+    plan: free # Или 'starter', 'standard', etc.
+
+    # Настройки порта (FastAPI слушает на 8000 внутри контейнера)
+    # Render автоматически пробросит внешний порт (обычно 443/80) на этот внутренний порт
+    healthCheckPath: / # Путь для проверки работоспособности (должен возвращать 2xx/3xx)
+    envVars:
+      - key: PYTHON_VERSION # Render может это использовать для оптимизации
+        value: "3.10" # Соответствует версии в твоем Dockerfile
+      - key: GROQ_API_KEY
+        # Рекомендуется использовать "Secret Files" или переменные окружения из UI Render
+        # для таких чувствительных данных, а не хранить их прямо в render.yaml.
+        # Если ты задал GROQ_API_KEY в UI Render для этого сервиса, он будет иметь приоритет.
+        # Либо создай секретный файл: fromSecret: имя-секретного-файла/ключ-в-файле
+        value: "gsk_ТВОЙ_GROQ_API_КЛЮЧ" # ЗАМЕНИ или настрой как секрет
+      - key: BASE_EXPORT_URL
+        # Это публичный URL твоего фронтенд-сервиса.
+        # Render подставит реальный URL сервиса 'llm-chat-frontend', если он уже создан.
+        # Иначе, тебе нужно будет обновить это после первого деплоя фронтенда или использовать его имя.
+        value: "https://llm-chat-frontend.onrender.com" # ЗАМЕНИ 'llm-chat-frontend' на реальное имя твоего фронтенд-сервиса
+      - key: BACKEND_API_BASE_URL
+        # Это публичный URL этого самого бэкенд-сервиса.
+        # Render автоматически предоставляет переменную окружения `RENDER_EXTERNAL_URL`
+        # для текущего сервиса, можно использовать её.
+        fromService:
+          type: web
+          name: llm-chat-backend # Ссылка на этот же сервис
+          envVarKey: RENDER_EXTERNAL_URL # Используем URL, который Render выдал этому сервису
+
+  # --- Фронтенд Сервис (React/Vite + Nginx) ---
+  - type: web
+    name: llm-chat-frontend # Название твоего фронтенд-сервиса на Render
+    env: docker
+    repo: https://github.com/ТВОЙ_USERNAME/ТВОЙ_РЕПОЗИТОРИЙ.git # ЗАМЕНИ!
+    # Dockerfile и контекст сборки для фронтенда находятся в папке 'frontend'
+    rootDir: ./frontend # Указываем, что корень для этого сервиса - папка 'frontend'
+    dockerfilePath: ./frontend/Dockerfile # Путь к Dockerfile фронтенда относительно rootDir
+
+    plan: free
+
+    # Nginx внутри контейнера слушает на порту 80
+    healthCheckPath: /index.html # Или просто /
+    envVars:
+      - key: VITE_BACKEND_URL_RUNTIME # Эта переменная будет использована в entrypoint.sh
+        # Используем URL бэкенд-сервиса 'llm-chat-backend'
+        fromService:
+          type: web
+          name: llm-chat-backend # Ссылка на бэкенд-сервис
+          envVarKey: RENDER_EXTERNAL_URL # Получаем публичный URL бэкенд-сервиса
+
+# (Опционально) Настройки для всего Blueprint (этого файла render.yaml)
+# preDeployCommand: "./scripts/pre-deploy.sh" # Команда перед деплоем всех сервисов
