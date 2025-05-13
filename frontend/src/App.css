@@ -17,26 +17,30 @@ body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'R
 .dialogue-item.active { background-color: var(--tg-theme-button-color, #50a8eb); color: var(--tg-theme-button-text-color, #fff); }
 .dialogue-item.active:hover { background-color: #4095d6; }
 .dialogue-title { flex-grow: 1; overflow: hidden; text-overflow: ellipsis; font-size: 0.9em; }
-/* --- NEW: Style for disabled dialogue item (when editing) --- */
+
 .dialogue-item.disabled {
     opacity: 0.7;
     cursor: not-allowed;
-    background-color: transparent !important; /* Ensure no hover/active styles apply */
+    background-color: transparent !important; 
     color: var(--tg-theme-hint-color, #999) !important;
 }
-.dialogue-item.disabled.active { /* Still show active one slightly different */
-    background-color: rgba(80, 168, 235, 0.3) !important; /* Dimmed active color */
+.dialogue-item.disabled.active { 
+    background-color: rgba(80, 168, 235, 0.3) !important; 
     color: var(--tg-theme-text-color, #333) !important;
 }
 .dialogue-item.disabled .dialogue-actions button {
     color: var(--tg-theme-hint-color, #aaa) !important;
     cursor: not-allowed;
 }
-/* --- END NEW --- */
+
 .dialogue-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; opacity: 0; transition: opacity 0.15s ease-in-out; }
 .dialogue-item:hover .dialogue-actions, .dialogue-item.active .dialogue-actions { opacity: 1; }
-/* Hide actions on disabled items */
-.dialogue-item.disabled .dialogue-actions { opacity: 0 !important; }
+.dialogue-item.disabled .dialogue-actions { opacity: 0.3 !important; pointer-events: none; } /* Dim disabled actions further */
+.dialogue-item.editing-title .dialogue-actions button:not(.edit-title-button) { /* Hide other actions when title is edited */
+    opacity: 0.3 !important;
+    pointer-events: none !important;
+}
+
 
 .action-button { background: none; border: none; padding: 3px; margin: 0; cursor: pointer; color: var(--tg-theme-hint-color, #999); transition: color 0.15s ease, opacity 0.15s ease; line-height: 1; display: flex; align-items: center; justify-content: center; min-width: 18px; min-height: 18px; }
 .action-button:hover:not(:disabled) { /* Specific hover colors set below */ }
@@ -45,8 +49,11 @@ body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'R
 .dialogue-item.active .action-button:hover:not(:disabled) { color: #fff; }
 .export-button:hover:not(:disabled) { color: var(--tg-theme-link-color, #2481cc); }
 .delete-dialogue-button:hover:not(:disabled) { color: var(--tg-theme-destructive-text-color, #e53935); }
-.dialogue-item.active .export-button:hover:not(:disabled) { color: #fff; }
+.edit-title-button:hover:not(:disabled) { color: var(--tg-theme-link-color, #2481cc); }
+.dialogue-item.active .export-button:hover:not(:disabled),
+.dialogue-item.active .edit-title-button:hover:not(:disabled) { color: #fff; }
 .dialogue-item.active .delete-dialogue-button:hover:not(:disabled) { color: #ffdddd; }
+
 .loader-small { box-sizing: border-box; border: 2px solid rgba(128, 128, 128, 0.3); border-top: 2px solid currentColor; border-radius: 50%; width: 14px; height: 14px; animation: spin 0.8s linear infinite; }
 
 .chat-main { flex-grow: 1; display: flex; flex-direction: column; height: 100%; overflow: hidden; position: relative; background-color: var(--tg-theme-bg-color, #fff); }
@@ -64,15 +71,15 @@ body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'R
 .model-selector select:disabled { opacity: 0.7; cursor: not-allowed; }
 .chat-messages { flex-grow: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 12px; }
 .chat-empty-state { text-align: center; margin-top: 40px; color: var(--tg-theme-hint-color, #888); font-size: 0.9em; }
-.message { display: flex; max-width: 85%; word-wrap: break-word; position: relative; /* Needed for edit button positioning */ }
+.message { display: flex; max-width: 85%; word-wrap: break-word; position: relative; }
 .message.user { align-self: flex-end; }
 .message.assistant { align-self: flex-start; }
-.message-content { padding: 9px 14px; border-radius: 18px; font-size: 0.95em; line-height: 1.5; position: relative; /* Edit button relative to this */ }
+.message-content { padding: 9px 14px; border-radius: 18px; font-size: 0.95em; line-height: 1.5; position: relative; }
 .message.user .message-content { background-color: var(--tg-theme-button-color, #50a8eb); color: var(--tg-theme-button-text-color, #fff); border-bottom-right-radius: 5px; }
 .message.assistant .message-content { background-color: var(--tg-theme-secondary-bg-color, #f0f0f0); color: var(--tg-theme-text-color, #000); border-bottom-left-radius: 5px; }
 .message-content p { margin: 0; }
-.message.assistant .loading-indicator p { font-style: italic; color: var(--tg-theme-hint-color, #777); animation: blink 1.5s infinite; }
-@keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+@keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } } 
 @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 .message.error-message { width: auto; max-width: 90%; align-self: center; text-align: center; padding: 8px 15px; background-color: rgba(255, 0, 0, 0.1); border: 1px solid var(--tg-theme-destructive-text-color, red); border-radius: 8px; margin-top: 10px; }
 .message.error-message p { color: var(--tg-theme-destructive-text-color, red); font-weight: 500; font-size: 0.9em; margin: 0; }
@@ -82,141 +89,88 @@ body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'R
 .chat-input-area textarea:disabled { opacity: 0.6; cursor: not-allowed; background-color: var(--tg-theme-secondary-bg-color, #f9f9f9); }
 .chat-input-area button { padding: 0; width: 40px; height: 40px; border: none; background-color: var(--tg-theme-button-color, #50a8eb); color: var(--tg-theme-button-text-color, #fff); border-radius: 50%; cursor: pointer; transition: background-color 0.2s ease, opacity 0.2s ease; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
 .chat-input-area button:hover:not(:disabled) { opacity: 0.9; }
-.chat-input-area button:disabled { background-color: var(--tg-theme-hint-color, #ccc) !important; /* Ensure grey bg */ opacity: 0.7; cursor: not-allowed; }
+.chat-input-area button:disabled { background-color: var(--tg-theme-hint-color, #ccc) !important; opacity: 0.7; cursor: not-allowed; }
 .chat-input-area button svg { width: 18px; height: 18px; }
 .chat-input-area button .loader-small { border-color: rgba(255, 255, 255, 0.4); border-top-color: #fff; }
 
-/* --- NEW/MODIFIED: Message Editing Styles --- */
-.edit-message-button {
-    position: absolute;
-    /* Place it outside the bubble, bottom-right */
-    bottom: -8px;
-    right: -8px;
-    background-color: var(--tg-theme-bg-color, #fff); /* Page background */
-    border: 1px solid var(--tg-theme-hint-color, #ddd);
-    border-radius: 50%;
-    width: 26px;
-    height: 26px;
-    padding: 0;
-    margin: 0;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--tg-theme-hint-color, #777);
-    opacity: 0; /* Hidden by default */
-    visibility: hidden;
-    transition: opacity 0.15s ease, visibility 0.15s ease, color 0.15s ease, border-color 0.15s ease;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.1);
-    z-index: 1; /* Ensure it's above message content if overlapping */
+.edit-message-button { position: absolute; bottom: -8px; right: -8px; background-color: var(--tg-theme-bg-color, #fff);  border: 1px solid var(--tg-theme-hint-color, #ddd); border-radius: 50%; width: 26px; height: 26px; padding: 0; margin: 0; cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--tg-theme-hint-color, #777); opacity: 0;  visibility: hidden; transition: opacity 0.15s ease, visibility 0.15s ease, color 0.15s ease, border-color 0.15s ease; box-shadow: 0 1px 2px rgba(0,0,0,0.1); z-index: 1; }
+.message.user:hover .edit-message-button { opacity: 1;  visibility: visible; }
+.edit-message-button:hover { color: var(--tg-theme-text-color, #000); border-color: var(--tg-theme-text-color, #888); }
+.message.editing .message-content { padding: 0;  background-color: transparent;  box-shadow: none;  border-radius: 0;  width: 100%;  }
+.message.editing .message-content p, .message.editing .message-content .edit-message-button { display: none;  }
+.edit-area { display: flex; flex-direction: column; gap: 8px;  padding: 8px;  border: 1px solid var(--tg-theme-button-color, #50a8eb);  border-radius: 8px; background-color: var(--tg-theme-bg-color, #fff);  }
+.edit-area textarea { width: 100%; box-sizing: border-box; padding: 8px 10px; border: 1px solid var(--tg-theme-hint-color, #ccc); border-radius: 6px; font-family: inherit; font-size: 0.95em;  line-height: 1.5;  background-color: var(--tg-theme-bg-color, #fff); color: var(--tg-theme-text-color, #000); resize: vertical; min-height: 60px;  outline: none; transition: border-color 0.2s ease; }
+.edit-area textarea:focus { border-color: var(--tg-theme-link-color, #2481cc); }
+.edit-area textarea:disabled { opacity: 0.7; cursor: not-allowed; background-color: var(--tg-theme-secondary-bg-color, #f5f5f5); }
+.edit-buttons { display: flex; justify-content: flex-end;  gap: 8px; }
+.edit-buttons button { display: flex; align-items: center; justify-content: center;  gap: 4px;  padding: 6px 8px;  min-width: 32px;  height: 32px;  border-radius: 6px; border: none; cursor: pointer; font-size: 0.9em; transition: background-color 0.2s ease, opacity 0.2s ease; }
+.edit-buttons button:disabled { opacity: 0.6; cursor: not-allowed; }
+.edit-save { background-color: #4CAF50;  color: #fff; }
+.edit-save:hover:not(:disabled) { background-color: #45a049; }
+.edit-cancel { background-color: var(--tg-theme-secondary-bg-color, #e0e0e0); color: var(--tg-theme-text-color, #000); }
+.edit-cancel:hover:not(:disabled) { background-color: #d5d5d5; }
+.edit-buttons button svg { width: 16px;  height: 16px; }
+
+/* --- Styles for Markdown Content & Message Actions --- */
+.markdown-content { line-height: 1.6; word-wrap: break-word; position: relative; }
+.markdown-content p { margin-top: 0; margin-bottom: 1em; }
+.markdown-content ul, .markdown-content ol { padding-left: 2em; margin-bottom: 1em; }
+.markdown-content li { margin-bottom: 0.25em; }
+.markdown-content blockquote { margin-left: 0; margin-right: 0; padding-left: 1em; border-left: 3px solid var(--tg-theme-hint-color, #ccc); color: var(--tg-theme-hint-color, #555); margin-bottom: 1em; }
+.markdown-content code { background-color: rgba(128, 128, 128, 0.15); padding: 0.2em 0.4em; font-size: 0.9em; border-radius: 4px; font-family: 'Courier New', Courier, monospace; color: var(--tg-theme-text-color, #000); }
+.markdown-content pre { border-radius: 6px; margin-bottom: 1em; overflow-x: auto; font-size: 0.9em; padding: 0.8em 1em; background-color: rgba(128,128,128,0.05); }
+.markdown-content table { border-collapse: collapse; margin-bottom: 1em; width: auto; font-size: 0.9em; }
+.markdown-content th, .markdown-content td { border: 1px solid var(--tg-theme-hint-color, #ccc); padding: 0.5em 0.75em; text-align: left; }
+.markdown-content th { background-color: rgba(128, 128, 128, 0.05); font-weight: 600; }
+
+.streaming-indicator { display: inline-block; margin-left: 4px; line-height: 1; vertical-align: text-bottom; }
+.streaming-indicator span { animation: streaming-dots 1.4s infinite both; display: inline-block; width: 6px; height: 6px; background-color: currentColor; border-radius: 50%; margin: 0 1px; }
+.streaming-indicator span:nth-child(1) { animation-delay: 0s; }
+.streaming-indicator span:nth-child(2) { animation-delay: 0.2s; }
+.streaming-indicator span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes streaming-dots { 0%, 60%, 100% { transform: scale(0); opacity: 0; } 30% { transform: scale(1.0); opacity: 1; } }
+
+.copy-message-button { position: absolute; bottom: 5px; right: 5px; background-color: rgba(128, 128, 128, 0.1); border: 1px solid var(--tg-theme-hint-color, rgba(128,128,128,0.2)); border-radius: 50%; width: 28px; height: 28px; padding: 0; cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--tg-theme-hint-color, #888); opacity: 0; visibility: hidden; transition: opacity 0.15s ease, visibility 0.15s ease, background-color 0.15s ease, color 0.15s ease; z-index: 1; }
+.regenerate-button { position: absolute; bottom: 5px; right: 38px; background-color: rgba(128, 128, 128, 0.1); border: 1px solid var(--tg-theme-hint-color, rgba(128,128,128,0.2)); border-radius: 50%; width: 28px; height: 28px; padding: 0; cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--tg-theme-hint-color, #888); opacity: 0; visibility: hidden; transition: opacity 0.15s ease, visibility 0.15s ease, background-color 0.15s ease, color 0.15s ease; z-index: 1; }
+.message.assistant .markdown-content:hover .copy-message-button, .message.assistant .markdown-content:hover .regenerate-button, .message.assistant:hover .copy-message-button, .message.assistant:hover .regenerate-button { opacity: 1; visibility: visible; }
+.copy-message-button:hover, .regenerate-button:hover { background-color: rgba(128, 128, 128, 0.2); color: var(--tg-theme-text-color, #333); }
+.copy-message-button.copied { color: #4CAF50; border-color: #4CAF50; }
+.copy-message-button.copied svg { animation: copied-pulse 0.5s ease-out; }
+@keyframes copied-pulse { 0% { transform: scale(1); } 50% { transform: scale(1.3); } 100% { transform: scale(1); } }
+
+.code-block-wrapper { position: relative; margin-bottom: 1em; }
+.code-block-header { display: flex; justify-content: space-between; align-items: center; padding: 4px 10px; background-color: rgba(0, 0, 0, 0.3); border-top-left-radius: 6px; border-top-right-radius: 6px; font-size: 0.8em; color: #ccc; }
+.code-block-language { text-transform: lowercase; font-family: 'Courier New', Courier, monospace; }
+.copy-code-button { background: none; border: none; color: #bbb; cursor: pointer; padding: 3px; display: flex; align-items: center; border-radius: 4px; transition: color 0.2s ease, background-color 0.2s ease; }
+.copy-code-button:hover { color: #fff; background-color: rgba(255,255,255,0.1); }
+.copy-code-button svg { display: block; }
+.syntax-highlighter-pre { margin: 0 !important; overflow: auto !important; border-radius: 0 0 6px 6px !important; }
+.syntax-highlighter-pre > code, .syntax-highlighter-pre > pre > code { font-family: 'Courier New', Courier, monospace !important; font-size: 0.9em !important; line-height: 1.4 !important; }
+/* --- END Styles for Markdown Content & Message Actions --- */
+
+/* Dialogue Title Editing Styles */
+.dialogue-item.editing-title {
+  background-color: rgba(0, 0, 0, 0.08) !important; 
+  /* Prevent hover effects when editing title */
+  /* pointer-events: none;  <-- This would disable input too, be careful */
 }
-.message.user:hover .edit-message-button {
-    opacity: 1; /* Show on hover user message */
-    visibility: visible;
-}
-.edit-message-button:hover {
-    color: var(--tg-theme-text-color, #000);
-    border-color: var(--tg-theme-text-color, #888);
+.dialogue-item.editing-title:hover { /* Override general hover */
+    background-color: rgba(0, 0, 0, 0.08) !important;
 }
 
-/* Styles when a message IS being edited */
-.message.editing {
-    /* Optional: Add a visual indicator like a border or background change */
-    /* border: 1px dashed var(--tg-theme-link-color, #2481cc); */
-    /* padding: 2px; */
-    /* margin: -3px; */
+.dialogue-title-edit-input {
+  flex-grow: 1;
+  padding: 5px 8px; /* Adjusted padding to better match .dialogue-title */
+  font-size: 0.9em; 
+  border: 1px solid var(--tg-theme-button-color, #50a8eb); 
+  border-radius: 4px;
+  background-color: var(--tg-theme-bg-color, #fff);
+  color: var(--tg-theme-text-color, #000);
+  outline: none;
+  margin-right: 5px; 
+  line-height: normal; /* Reset line height for input */
+  height: auto; /* Ensure it doesn't get overly tall */
 }
-.message.editing .message-content {
-    padding: 0; /* Remove bubble padding */
-    background-color: transparent; /* Remove bubble background */
-    box-shadow: none; /* Remove bubble shadow if any */
-    border-radius: 0; /* Remove bubble radius */
-    width: 100%; /* Make it take full width of the .message container */
-}
-.message.editing .message-content p,
-.message.editing .message-content .edit-message-button {
-    display: none; /* Hide original text and edit button */
-}
-
-.edit-area {
-    display: flex;
-    flex-direction: column;
-    gap: 8px; /* Space between textarea and buttons */
-    padding: 8px; /* Add some padding around the edit area */
-    border: 1px solid var(--tg-theme-button-color, #50a8eb); /* Highlight editing area */
-    border-radius: 8px;
-    background-color: var(--tg-theme-bg-color, #fff); /* Ensure background */
-}
-
-.edit-area textarea {
-    width: 100%;
-    box-sizing: border-box;
-    padding: 8px 10px;
-    border: 1px solid var(--tg-theme-hint-color, #ccc);
-    border-radius: 6px;
-    font-family: inherit;
-    font-size: 0.95em; /* Match message font size */
-    line-height: 1.5; /* Match message line height */
-    background-color: var(--tg-theme-bg-color, #fff);
-    color: var(--tg-theme-text-color, #000);
-    resize: vertical;
-    min-height: 60px; /* Minimum height */
-    outline: none;
-    transition: border-color 0.2s ease;
-}
-.edit-area textarea:focus {
-    border-color: var(--tg-theme-link-color, #2481cc);
-}
-.edit-area textarea:disabled {
-    opacity: 0.7;
-    cursor: not-allowed;
-    background-color: var(--tg-theme-secondary-bg-color, #f5f5f5);
-}
-
-.edit-buttons {
-    display: flex;
-    justify-content: flex-end; /* Buttons on the right */
-    gap: 8px;
-}
-
-.edit-buttons button {
-    display: flex;
-    align-items: center;
-    justify-content: center; /* Center icon */
-    gap: 4px; /* Space between icon and text if any */
-    padding: 6px 8px; /* Adjust padding */
-    min-width: 32px; /* Ensure minimum width */
-    height: 32px; /* Fixed height */
-    border-radius: 6px;
-    border: none;
-    cursor: pointer;
-    font-size: 0.9em;
-    transition: background-color 0.2s ease, opacity 0.2s ease;
-}
-.edit-buttons button:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-}
-
-.edit-save {
-    background-color: #4CAF50; /* Green for save */
-    color: #fff;
-}
-.edit-save:hover:not(:disabled) {
-    background-color: #45a049;
-}
-.edit-cancel {
-    background-color: var(--tg-theme-secondary-bg-color, #e0e0e0);
-    color: var(--tg-theme-text-color, #000);
-}
-.edit-cancel:hover:not(:disabled) {
-    background-color: #d5d5d5;
-}
-.edit-buttons button svg {
-    width: 16px; /* Consistent icon size */
-    height: 16px;
-}
-/* --- END Message Editing Styles --- */
 
 
 /* Export Info Area Styles */
@@ -230,6 +184,26 @@ body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'R
 .export-info .copy-link-button { background: none; border: none; padding: 0; margin: 0; cursor: pointer; color: var(--tg-theme-link-color, #2481cc); flex-shrink: 0; display: flex; align-items: center; }
 .copy-link-button:hover { opacity: 0.8; }
 
+
+/* Modal Styles */
+.modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0, 0, 0, 0.6); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 15px; }
+.modal-content { background-color: var(--tg-theme-bg-color, #fff); padding: 20px 25px; border-radius: 12px; box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2); width: 100%; max-width: 500px; position: relative; display: flex; flex-direction: column; gap: 15px; }
+.modal-content h2 { margin: 0 0 5px 0; font-size: 1.3em; color: var(--tg-theme-text-color, #333); text-align: center; }
+.modal-description { font-size: 0.9em; color: var(--tg-theme-hint-color, #666); margin: 0 0 10px 0; text-align: center; line-height: 1.4; }
+.modal-content textarea { width: 100%; box-sizing: border-box; padding: 10px 12px; border: 1px solid var(--tg-theme-hint-color, #ccc); border-radius: 8px; font-family: inherit; font-size: 0.95em; background-color: var(--tg-theme-secondary-bg-color, #f9f9f9); color: var(--tg-theme-text-color, #000); resize: vertical; min-height: 80px; outline: none; transition: border-color 0.2s ease; }
+.modal-content textarea:focus { border-color: var(--tg-theme-link-color, #2481cc); }
+.modal-content textarea:disabled { opacity: 0.7; cursor: not-allowed; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px; }
+.modal-actions .button-primary, .modal-actions .button-secondary { padding: 8px 18px; border-radius: 8px; font-size: 0.95em; font-weight: 500; cursor: pointer; transition: background-color 0.2s ease, opacity 0.2s ease; border: none; }
+.modal-actions .button-primary:disabled, .modal-actions .button-secondary:disabled { opacity: 0.6; cursor: not-allowed; }
+.modal-actions .button-primary { background-color: var(--tg-theme-button-color, #50a8eb); color: var(--tg-theme-button-text-color, #fff); }
+.modal-actions .button-primary:hover:not(:disabled) { opacity: 0.85; }
+.modal-actions .button-secondary { background-color: var(--tg-theme-secondary-bg-color, #e0e0e0); color: var(--tg-theme-text-color, #333); border: 1px solid var(--tg-theme-hint-color, #ccc); }
+.modal-actions .button-secondary:hover:not(:disabled) { background-color: #d5d5d5; }
+.modal-close-button { position: absolute; top: 10px; right: 10px; background: none; border: none; padding: 5px; cursor: pointer; color: var(--tg-theme-hint-color, #888); line-height: 1; }
+.modal-close-button:hover { color: var(--tg-theme-text-color, #333); }
+
+
 /* Responsive adjustments */
 @media (max-width: 767px) {
   .sidebar { position: fixed; top: 0; left: 0; }
@@ -238,7 +212,6 @@ body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'R
   .chat-header { padding-left: 55px; }
   .chat-header h1 { font-size: 1em; }
   .model-selector select { font-size: 0.85em; padding: 4px 8px; }
-  /* Make edit button slightly easier to tap on mobile */
   .edit-message-button { width: 28px; height: 28px; bottom: -10px; right: -10px; }
   .edit-message-button svg { width: 16px; height: 16px; }
 }

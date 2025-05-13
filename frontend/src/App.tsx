@@ -1,14 +1,19 @@
 // --- START OF FILE App.tsx ---
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 // Import necessary icons
-import { PlusCircle, Trash, Menu, X, Send, Share2, Copy, Edit2, Check, Info } from 'react-feather';
+import { PlusCircle, Trash, Menu, X, Send, Share2, Copy, Edit2, Check, Info, RefreshCw, Edit3 } from 'react-feather'; // Added RefreshCw, Edit3
 // Import SSE parser
 import { createParser, type EventSourceMessage } from 'eventsource-parser'; // Updated import
 // Import Markdown renderer
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { atomDark } from 'react-syntax-highlighter/dist/esm/styles/prism'; // Chosen style
+
 import './App.css';
 import { useTelegramTheme } from './hooks/useTelegramTheme';
+import SystemPromptModal from './components/SystemPromptModal';
+
 
 // Interface for a single chat message
 interface ChatMessage {
@@ -26,12 +31,10 @@ interface Dialogue {
     systemPrompt?: string;
 }
 
-// AppProps interface removed as it's empty and App takes no props
-
 // Backend URL - Now attempts to read from window.__BACKEND_URL__ injected by Docker/Nginx
 const BACKEND_URL = window.__BACKEND_URL__ && window.__BACKEND_URL__ !== "__VITE_BACKEND_URL_PLACEHOLDER__"
     ? window.__BACKEND_URL__
-    : 'http://localhost:8000/fallback'; // Запасной URL на случай, если что-то пошло не так
+    : 'http://localhost:8000'; // Запасной URL на случай, если что-то пошло не так
 
 
 // NGROK Header
@@ -59,16 +62,22 @@ function App() { // No props
     const [exportingId, setExportingId] = useState<string | null>(null);
     const [exportLink, setExportLink] = useState<string | null>(null);
     const [copySuccess, setCopySuccess] = useState<string>('');
+    const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+
 
     // --- Editing State ---
     const [editingMessageKey, setEditingMessageKey] = useState<string | null>(null);
     const [editText, setEditText] = useState<string>('');
+    const [editingDialogueId, setEditingDialogueId] = useState<string | null>(null);
+    const [editingDialogueTitle, setEditingDialogueTitle] = useState<string>('');
 
     // --- Refs ---
     const messagesEndRef = useRef<null | HTMLDivElement>(null);
     const editTextAreaRef = useRef<HTMLTextAreaElement>(null);
     const abortControllerRef = useRef<AbortController | null>(null);
     const streamingDialogueIdRef = useRef<string | null>(null);
+
+    const [isSystemPromptModalOpen, setIsSystemPromptModalOpen] = useState(false);
 
 
     // --- HELPER FUNCTIONS ---
@@ -181,7 +190,7 @@ function App() { // No props
         setIsLoading(true);
         setError(null);
         setExportLink(null);
-        setCopySuccess('');
+        setCopySuccess(''); 
 
         if (abortControllerRef.current) {
             console.log("Aborting previous fetch before starting new one.");
@@ -216,9 +225,8 @@ function App() { // No props
 
             const parser = createParser({
                 onEvent(event: EventSourceMessage) {
-                    console.log("--- [FRONTEND LOG 0] Entering onEvent ---", event);
 
-                    if (event.event === 'error') { // Check for custom 'error' event name
+                    if (event.event === 'error') { 
                         console.log("[onEvent] Processing 'error' event from server");
                         try {
                             const errorData = JSON.parse(event.data || '{}');
@@ -235,25 +243,16 @@ function App() { // No props
                         return;
                     }
 
-                    if (event.event === 'end') { // Check for custom 'end' event name
+                    if (event.event === 'end') { 
                         console.log("[onEvent] Processing 'end' event from server");
-                        // This event might signal the backend finished sending.
-                        // The `reader.read()` loop handles the actual stream closing.
                         return;
                     }
 
-                    // Handle data chunks (tokens)
-                    // These are typically unnamed events, so event.event might be undefined or 'message'
                     if (event.data) {
-                        const eventData = event.data;
-                        console.log("[FRONTEND LOG B] Raw data found:", eventData);
                         try {
-                            const parsedData = JSON.parse(eventData);
-                            console.log("[FRONTEND LOG C] Parsed data:", parsedData);
-
+                            const parsedData = JSON.parse(event.data);
                             if (parsedData && typeof parsedData.token === 'string') {
                                 const token = parsedData.token;
-                                console.log(">>> [FRONTEND LOG D] Token found:", token);
                                 currentAccumulatedContent += token;
 
                                 const currentStreamingId = streamingDialogueIdRef.current;
@@ -272,30 +271,25 @@ function App() { // No props
                                                     content: currentAccumulatedContent
                                                 };
                                                 return { ...dialogue, messages: updatedMessages };
-                                            } else {
-                                                console.warn(`[setDialogues update] Last message mismatch for dialogue ${currentStreamingId}. Expected assistant placeholder at index ${lastMessageIndex}. Found:`, updatedMessages[lastMessageIndex]);
-                                            }
+                                            } 
                                         }
                                         return dialogue;
                                     });
                                 });
-                            } else {
-                                console.log("[FRONTEND LOG E] No token found in parsed data or not a string:", parsedData);
-                            }
+                            } 
                         } catch (parseError) {
-                            console.error("[FRONTEND LOG F] Error parsing JSON data in onEvent:", parseError, "Raw data:", eventData);
+                            console.error("[FRONTEND LOG F] Error parsing JSON data in onEvent:", parseError, "Raw data:", event.data);
                             setError("Ошибка обработки данных от сервера.");
                             if (abortControllerRef.current && !abortControllerRef.current.signal.aborted) {
                                  abortControllerRef.current.abort("SSE JSON Parsing Error in onEvent");
                                  setIsLoading(false);
                             }
                         }
-                    } else if (event.event) { // Log other named events without data if any
+                    } else if (event.event) { 
                         console.log(`[onEvent] Received named event '${event.event}' without data.`);
                     }
-                    // Note: 'retry' events are handled by onRetry if defined, or ignored.
                 },
-                onError(err) { // Handles errors from the parser itself
+                onError(err) { 
                     console.error("EventSourceParser internal error:", err);
                     setError("Ошибка парсера событий от сервера.");
                     setIsLoading(false);
@@ -303,7 +297,6 @@ function App() { // No props
                         abortControllerRef.current.abort("EventSourceParser internal error");
                     }
                 }
-                // onRetry is not implemented as per instructions
             });
 
             while (true) {
@@ -317,7 +310,6 @@ function App() { // No props
                     break;
                 }
                 const textChunk = decoder.decode(value, { stream: true });
-                console.log("[FRONTEND LOG G] Feeding parser with chunk:", textChunk);
                 parser.feed(textChunk);
             }
             console.log("Exited reader loop normally (stream finished).");
@@ -333,7 +325,7 @@ function App() { // No props
                      console.error("Error during streaming fetch/processing:", err);
                      setError(err.message || "Не удалось отправить или обработать сообщение.");
                  }
-                 if (signal.reason !== 'User aborted') {
+                 if (signal.reason !== 'User aborted') { 
                       setDialogues(prev => prev.map(d => {
                           const idToClean = streamingDialogueIdRef.current ?? dialogueIdToUpdate;
                           if (d.id === idToClean) {
@@ -358,7 +350,7 @@ function App() { // No props
                   console.log("Clearing AbortController ref in finally.");
                   abortControllerRef.current = null;
              }
-             streamingDialogueIdRef.current = null;
+             streamingDialogueIdRef.current = null; 
              console.log("Cleared streamingDialogueIdRef in finally.");
         }
     }, [selectedModel, setIsLoading, setError, setDialogues, setExportLink, setCopySuccess]);
@@ -366,8 +358,8 @@ function App() { // No props
 
     const sendMessage = useCallback(async () => {
         const currentDialogue = getActiveDialogue();
-        if (!activeDialogueId || !userInput.trim() || isLoading || !selectedModel || !currentDialogue || editingMessageKey) {
-            console.warn("SendMessage checks failed:", { activeDialogueId, userInput: userInput.trim(), isLoading, selectedModel, currentDialogueExists: !!currentDialogue, editingMessageKey });
+        if (!activeDialogueId || !userInput.trim() || isLoading || !selectedModel || !currentDialogue || editingMessageKey || editingDialogueId) {
+            console.warn("SendMessage checks failed:", { activeDialogueId, userInput: userInput.trim(), isLoading, selectedModel, currentDialogueExists: !!currentDialogue, editingMessageKey, editingDialogueId });
             return;
         }
 
@@ -403,7 +395,7 @@ function App() { // No props
         setUserInput('');
         streamResponse(dialogueIdToUpdate, messagesForApi);
 
-    }, [userInput, isLoading, selectedModel, activeDialogueId, getActiveDialogue, editingMessageKey, setDialogues, setUserInput, streamResponse]);
+    }, [userInput, isLoading, selectedModel, activeDialogueId, getActiveDialogue, editingMessageKey, editingDialogueId, setDialogues, setUserInput, streamResponse]);
 
 
     const cancelEditing = useCallback(() => {
@@ -485,7 +477,7 @@ function App() { // No props
 
 
     const startEditing = (dialogueId: string, messageIndex: number, currentContent: string) => {
-        if (isLoading || exportingId || editingMessageKey) return;
+        if (isLoading || exportingId || editingMessageKey || editingDialogueId) return;
         stopStreaming();
         const messageKey = `${dialogueId}-${messageIndex}`;
         setEditingMessageKey(messageKey);
@@ -496,9 +488,10 @@ function App() { // No props
     };
 
     const createNewDialogue = useCallback(() => {
-        if (isLoading || editingMessageKey) return;
+        if (isLoading || editingMessageKey || editingDialogueId) return;
         stopStreaming();
         cancelEditing();
+        cancelEditingDialogueTitle(); // Cancel title editing too
         setError(null);
         setExportLink(null);
         setCopySuccess('');
@@ -517,10 +510,10 @@ function App() { // No props
         setActiveDialogueId(newDialogueId);
         setUserInput('');
         if (window.innerWidth < 768) setIsSidebarOpen(false);
-    }, [isLoading, editingMessageKey, dialogues, selectedModel, stopStreaming, cancelEditing, setDialogues, setActiveDialogueId, setError, setUserInput, setIsSidebarOpen, setExportLink, setCopySuccess]);
+    }, [isLoading, editingMessageKey, editingDialogueId, dialogues, selectedModel, stopStreaming, cancelEditing, setDialogues, setActiveDialogueId, setError, setUserInput, setIsSidebarOpen, setExportLink, setCopySuccess]);
 
     const deleteDialogue = useCallback((idToDelete: string) => {
-        if (isLoading || editingMessageKey) return;
+        if (isLoading || editingMessageKey || editingDialogueId) return;
 
         if (isLoading && streamingDialogueIdRef.current === idToDelete) {
             stopStreaming();
@@ -528,6 +521,10 @@ function App() { // No props
         if (editingMessageKey?.startsWith(idToDelete)) {
             cancelEditing();
         }
+        if (editingDialogueId === idToDelete) {
+            cancelEditingDialogueTitle();
+        }
+
 
         const remainingDialogues = dialogues.filter(d => d.id !== idToDelete);
         setDialogues(remainingDialogues);
@@ -543,22 +540,23 @@ function App() { // No props
                  setActiveDialogueId(null);
             }
         }
-    }, [dialogues, activeDialogueId, editingMessageKey, isLoading, stopStreaming, cancelEditing, setError, setDialogues, setActiveDialogueId, setExportLink, setCopySuccess]);
+    }, [dialogues, activeDialogueId, editingMessageKey, editingDialogueId, isLoading, stopStreaming, cancelEditing, setError, setDialogues, setActiveDialogueId, setExportLink, setCopySuccess]);
 
     useEffect(() => {
-        if (!modelsLoading && dialogues.length === 0 && !activeDialogueId && !isLoading && !editingMessageKey && availableModels.length > 0) {
+        if (!modelsLoading && dialogues.length === 0 && !activeDialogueId && !isLoading && !editingMessageKey && !editingDialogueId && availableModels.length > 0) {
             console.log("No dialogues found, creating initial one.");
             createNewDialogue();
         }
-    }, [modelsLoading, dialogues, activeDialogueId, isLoading, editingMessageKey, availableModels, createNewDialogue]);
+    }, [modelsLoading, dialogues, activeDialogueId, isLoading, editingMessageKey, editingDialogueId, availableModels, createNewDialogue]);
 
 
     const selectDialogue = (id: string) => {
-        if (id === activeDialogueId || isLoading || editingMessageKey) {
+        if (id === activeDialogueId || isLoading || editingMessageKey || editingDialogueId) {
             return;
         }
         stopStreaming();
         cancelEditing();
+        // cancelEditingDialogueTitle(); // No need, as editingDialogueId check above prevents selection
         setActiveDialogueId(id);
         setError(null);
         setExportLink(null);
@@ -581,7 +579,7 @@ function App() { // No props
     const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
         if (event.key === 'Enter' && !event.shiftKey) {
             event.preventDefault();
-            if (!isLoading && !editingMessageKey && userInput.trim() && activeDialogueId && selectedModel) {
+            if (!isLoading && !editingMessageKey && !editingDialogueId && userInput.trim() && activeDialogueId && selectedModel) {
                 sendMessage();
             }
         }
@@ -589,7 +587,7 @@ function App() { // No props
 
     const handleModelChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
         const newModel = event.target.value;
-        if (newModel && !isLoading && !editingMessageKey && !exportingId) {
+        if (newModel && !isLoading && !editingMessageKey && !exportingId && !editingDialogueId) {
             stopStreaming();
             setSelectedModel(newModel);
             localStorage.setItem(LS_MODEL_KEY, newModel);
@@ -600,26 +598,57 @@ function App() { // No props
     const closeSidebar = () => setIsSidebarOpen(false);
     const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
 
-    const copyToClipboard = useCallback((text: string | null) => {
+    const handleCopyToClipboard = useCallback((text: string | null, feedbackType: 'global-link' | 'local-code' | 'local-message', idForFeedback?: string, event?: React.MouseEvent<HTMLButtonElement>) => {
         if (!text) return;
+
         if (!navigator.clipboard) {
-            setCopySuccess('Копирование недоступно (небезопасный контекст).');
+            if (feedbackType === 'global-link') {
+                setCopySuccess('Копирование недоступно (небезопасный контекст).');
+            } else if (event?.target) {
+                const button = event.target as HTMLElement;
+                const originalText = button.innerHTML; 
+                button.innerText = 'Error!'; 
+                setTimeout(() => { button.innerHTML = originalText; }, 1500);
+            }
             console.warn("Clipboard API not available. Ensure page is served over HTTPS or localhost.");
-            setTimeout(() => setCopySuccess(''), 3000);
             return;
         }
+
         navigator.clipboard.writeText(text).then(() => {
-            setCopySuccess('Ссылка скопирована!');
-            setTimeout(() => setCopySuccess(''), 3000);
+            if (feedbackType === 'global-link') {
+                setCopySuccess('Ссылка скопирована!');
+                setTimeout(() => setCopySuccess(''), 3000);
+            } else if (feedbackType === 'local-code' && event?.target) {
+                 const button = event.target as HTMLElement;
+                 const iconElement = button.querySelector('svg');
+                 const originalContent = button.innerHTML; 
+                 if (iconElement) { 
+                     button.innerHTML = 'Скопировано! '; 
+                     button.appendChild(iconElement.cloneNode(true)); 
+                 } else {
+                     button.innerText = 'Скопировано!';
+                 }
+                 setTimeout(() => { button.innerHTML = originalContent; }, 1500);
+            } else if (feedbackType === 'local-message' && idForFeedback) {
+                setCopiedMessageId(idForFeedback);
+                setTimeout(() => setCopiedMessageId(null), 1500);
+            }
         }).catch(err => {
-            setCopySuccess('Ошибка копирования ссылки.');
+            if (feedbackType === 'global-link') {
+                setCopySuccess('Ошибка копирования ссылки.');
+            } else if (event?.target) {
+                const button = event.target as HTMLElement;
+                const originalText = button.innerHTML;
+                button.innerText = 'Ошибка!';
+                 setTimeout(() => { button.innerHTML = originalText; }, 1500);
+            }
             console.error('Failed to copy text: ', err);
-             setTimeout(() => setCopySuccess(''), 3000);
         });
     }, []);
 
+
     const handleExport = useCallback(async (dialogueToExport: Dialogue | undefined) => {
-         if (!dialogueToExport || exportingId || editingMessageKey || isLoading) return;
+         if (!dialogueToExport || exportingId || editingMessageKey || isLoading || editingDialogueId) return;
 
          stopStreaming();
          const dialogueId = dialogueToExport.id;
@@ -643,7 +672,7 @@ function App() { // No props
              const data = await response.json();
              if (data.url) {
                  setExportLink(data.url);
-                 copyToClipboard(data.url);
+                 handleCopyToClipboard(data.url, 'global-link');
              } else {
                  throw new Error("Не удалось получить ссылку для экспорта от сервера.");
              }
@@ -656,67 +685,190 @@ function App() { // No props
          } finally {
              setExportingId(null);
          }
-     }, [exportingId, editingMessageKey, isLoading, BACKEND_URL, stopStreaming, copyToClipboard, setError, setExportingId, setExportLink, setCopySuccess]);
+     }, [exportingId, editingMessageKey, isLoading, editingDialogueId, BACKEND_URL, stopStreaming, handleCopyToClipboard, setError, setExportingId, setExportLink, setCopySuccess]);
+
 
     const handleSetSystemPrompt = useCallback(() => {
-        const currentDialogue = getActiveDialogue();
-        if (!currentDialogue || !activeDialogueId) return;
+        if (!isLoading && !editingMessageKey && !exportingId && activeDialogueId && !editingDialogueId) {
+            setIsSystemPromptModalOpen(true);
+        }
+    }, [isLoading, editingMessageKey, exportingId, activeDialogueId, editingDialogueId]);
 
-        const currentSystemPrompt = currentDialogue.systemPrompt || '';
-        const newSystemPrompt = prompt(
-            "Введите системный промпт для этого чата (оставьте пустым, чтобы удалить):",
-            currentSystemPrompt
-        );
-
-        if (newSystemPrompt !== null) {
+    const handleSaveSystemPromptFromModal = (newPrompt: string) => {
+        if (activeDialogueId) {
             setDialogues(prevDialogues =>
                 prevDialogues.map(d =>
                     d.id === activeDialogueId
-                        ? { ...d, systemPrompt: newSystemPrompt.trim() ? newSystemPrompt.trim() : undefined }
+                        ? { ...d, systemPrompt: newPrompt ? newPrompt : undefined }
                         : d
                 )
             );
         }
-    }, [activeDialogueId, dialogues, getActiveDialogue, setDialogues]);
+        setIsSystemPromptModalOpen(false);
+    };
+
+    const handleRegenerateResponse = useCallback(async (dialogueId: string, messageIndexToRegenerate: number) => {
+        if (isLoading || editingMessageKey || exportingId || editingDialogueId) {
+            console.warn("Regeneration checks failed: an operation is already in progress.");
+            return;
+        }
+
+        const dialogueToUpdate = dialogues.find(d => d.id === dialogueId);
+        if (!dialogueToUpdate) {
+            console.error("Dialogue not found for regeneration:", dialogueId);
+            return;
+        }
+
+        if (messageIndexToRegenerate === 0 || dialogueToUpdate.messages[messageIndexToRegenerate - 1]?.role !== 'user') {
+            console.error("Cannot regenerate: no preceding user message found or trying to regenerate first message.");
+            setError("Невозможно перегенерировать ответ без предыдущего запроса пользователя.");
+            return;
+        }
+
+        const historyForApi = dialogueToUpdate.messages.slice(0, messageIndexToRegenerate); 
+
+        const messagesForApiWithSystemPrompt: ChatMessage[] = [];
+        if (dialogueToUpdate.systemPrompt) {
+            messagesForApiWithSystemPrompt.push({ role: 'system', content: dialogueToUpdate.systemPrompt });
+        }
+        historyForApi.forEach(msg => {
+            if (msg.role !== 'system') { 
+                messagesForApiWithSystemPrompt.push({ role: msg.role, content: msg.content });
+            }
+        });
+
+
+        const assistantMessagePlaceholder: ChatMessage = { role: 'assistant', content: '' };
+        setDialogues(prevDialogues =>
+            prevDialogues.map(d =>
+                d.id === dialogueId
+                    ? {
+                        ...d,
+                        messages: [...historyForApi, assistantMessagePlaceholder],
+                        modelUsed: selectedModel 
+                      }
+                    : d
+            )
+        );
+
+        setError(null); 
+        streamResponse(dialogueId, messagesForApiWithSystemPrompt);
+
+    }, [dialogues, isLoading, editingMessageKey, editingDialogueId, exportingId, selectedModel, streamResponse, setError, setDialogues]);
+
+    const startEditingDialogueTitle = (dialogue: Dialogue) => {
+        if (isLoading || exportingId || editingMessageKey || editingDialogueId) return; 
+        stopStreaming(); 
+        cancelEditing(); 
+        setEditingDialogueId(dialogue.id);
+        setEditingDialogueTitle(dialogue.title);
+    };
+
+    const cancelEditingDialogueTitle = () => {
+        setEditingDialogueId(null);
+        setEditingDialogueTitle('');
+    };
+
+    const handleSaveDialogueTitle = () => {
+        if (!editingDialogueId || !editingDialogueTitle.trim()) {
+            // If title is empty, revert to original or keep it (current cancels)
+            const originalDialogue = dialogues.find(d => d.id === editingDialogueId);
+            if (originalDialogue && !editingDialogueTitle.trim()) {
+                setEditingDialogueTitle(originalDialogue.title); // Revert to original if new is empty
+                 setDialogues(prevDialogues =>
+                     prevDialogues.map(d =>
+                         d.id === editingDialogueId ? { ...d, title: originalDialogue.title } : d
+                     )
+                 );
+            } else if (!editingDialogueTitle.trim()){
+                 cancelEditingDialogueTitle();
+                 return;
+            }
+        }
+         if (editingDialogueId && editingDialogueTitle.trim()) {
+            setDialogues(prevDialogues =>
+                prevDialogues.map(d =>
+                    d.id === editingDialogueId ? { ...d, title: editingDialogueTitle.trim() } : d
+                )
+            );
+        }
+        cancelEditingDialogueTitle();
+    };
+
+    const handleTitleEditKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+        if (event.key === 'Enter') {
+            event.preventDefault(); // Prevent form submission if any
+            handleSaveDialogueTitle();
+        } else if (event.key === 'Escape') {
+            cancelEditingDialogueTitle();
+        }
+    };
 
 
     // --- RENDER LOGIC ---
     const currentMessages = getActiveDialogue()?.messages || [];
     const currentActiveDialogue = getActiveDialogue();
     const textAreaRows = Math.min(userInput.split('\n').length, 5);
+    const globalOperationInProgress = isLoading || !!exportingId || !!editingMessageKey || !!editingDialogueId;
+
 
     return (
          <div className={`app-container ${isSidebarOpen ? 'sidebar-open' : 'sidebar-closed'}`}>
             {/* Sidebar */}
             <div className="sidebar">
-                 <button className="new-chat-button" onClick={createNewDialogue} disabled={isLoading || !!exportingId || !!editingMessageKey}>
+                 <button className="new-chat-button" onClick={createNewDialogue} disabled={globalOperationInProgress}>
                      <PlusCircle size={18} /> Новый чат
                  </button>
                  <div className="dialogue-list">
                      {[...dialogues].sort((a, b) => b.createdAt - a.createdAt).map(dialogue => {
                          const isActive = dialogue.id === activeDialogueId;
-                         const isDisabled = !!editingMessageKey || isLoading || !!exportingId;
+                         const isThisTitleBeingEdited = editingDialogueId === dialogue.id;
+                         const isItemDisabledForSelection = (isLoading || !!exportingId || !!editingMessageKey || (!!editingDialogueId && !isThisTitleBeingEdited));
+
                          return (
                              <div
                                  key={dialogue.id}
-                                 className={`dialogue-item ${isActive ? 'active' : ''} ${isDisabled ? 'disabled' : ''}`}
-                                 onClick={() => !isDisabled && selectDialogue(dialogue.id)}
-                                 title={dialogue.title}
+                                 className={`dialogue-item ${isActive ? 'active' : ''} ${isItemDisabledForSelection ? 'disabled' : ''} ${isThisTitleBeingEdited ? 'editing-title' : ''}`}
+                                 onClick={() => !isItemDisabledForSelection && !isThisTitleBeingEdited && selectDialogue(dialogue.id)}
+                                 title={isThisTitleBeingEdited ? "Редактирование названия..." : dialogue.title}
                              >
-                                 <span className="dialogue-title">{dialogue.title}</span>
-                                 <div className="dialogue-actions">
-                                     {isActive && dialogue.messages.length > 0 && !editingMessageKey && (
+                                {isThisTitleBeingEdited ? (
+                                    <input
+                                        type="text"
+                                        className="dialogue-title-edit-input"
+                                        value={editingDialogueTitle}
+                                        onChange={(e) => setEditingDialogueTitle(e.target.value)}
+                                        onKeyDown={handleTitleEditKeyDown}
+                                        onBlur={handleSaveDialogueTitle} 
+                                        autoFocus
+                                        onClick={(e) => e.stopPropagation()} 
+                                    />
+                                ) : (
+                                    <span className="dialogue-title">{dialogue.title}</span>
+                                )}
+                                <div className="dialogue-actions">
+                                    {!isThisTitleBeingEdited && !editingDialogueId && (
+                                        <button
+                                            className="action-button edit-title-button"
+                                            onClick={(e) => { e.stopPropagation(); startEditingDialogueTitle(dialogue); }}
+                                            disabled={isLoading || !!exportingId || !!editingMessageKey}
+                                            title="Переименовать чат"
+                                        >
+                                            <Edit3 size={14} />
+                                        </button>
+                                    )}
+                                     {isActive && dialogue.messages.length > 0 && !editingMessageKey && !editingDialogueId && (
                                          <button
                                              className="action-button export-button"
                                              onClick={(e) => { e.stopPropagation(); handleExport(dialogue); }}
-                                             disabled={exportingId === dialogue.id || isLoading}
+                                             disabled={isLoading || !!exportingId}
                                              title="Экспортировать чат"
                                              aria-label="Экспортировать чат"
                                          >
                                              {exportingId === dialogue.id ? <div className="loader-small"></div> : <Share2 size={14} />}
                                          </button>
                                      )}
-                                     {dialogues.length > 1 && !editingMessageKey && (
+                                     {dialogues.length > 1 && !editingMessageKey && !editingDialogueId && (
                                          <button
                                              className="action-button delete-dialogue-button"
                                              onClick={(e) => { e.stopPropagation(); deleteDialogue(dialogue.id); }}
@@ -733,13 +885,13 @@ function App() { // No props
                      })}
                      {dialogues.length === 0 && !modelsLoading && ( <div className="dialogue-list-empty">Нет чатов</div> )}
                  </div>
-                 {activeDialogueId && !editingMessageKey && !isLoading && (exportLink || copySuccess) && (
+                 {activeDialogueId && !editingMessageKey && !editingDialogueId && !isLoading && (exportLink || copySuccess) && (
                      <div className="export-info">
                          {copySuccess && <p className={`copy-feedback ${copySuccess.includes('Ошибка') || copySuccess.includes('недоступно') ? 'error' : 'success'}`}>{copySuccess}</p>}
                          {exportLink && (!copySuccess || copySuccess.includes('Ошибка') || copySuccess.includes('недоступно')) && (
                              <div className="export-link-container">
                                  <a href={exportLink} target="_blank" rel="noopener noreferrer" title={exportLink}> {exportLink.substring(0, 30)}... </a>
-                                 <button className="copy-link-button" onClick={() => copyToClipboard(exportLink)} title="Скопировать ссылку" aria-label="Скопировать ссылку"> <Copy size={14} /> </button>
+                                 <button className="copy-link-button" onClick={(e) => handleCopyToClipboard(exportLink, 'global-link', undefined, e)} title="Скопировать ссылку" aria-label="Скопировать ссылку"> <Copy size={14} /> </button>
                              </div>
                          )}
                           {exportLink && copySuccess === 'Ссылка скопирована!' && (
@@ -759,7 +911,7 @@ function App() { // No props
                     onClick={toggleSidebar}
                     title={isSidebarOpen ? "Скрыть панель" : "Показать панель"}
                     aria-label={isSidebarOpen ? "Скрыть панель чатов" : "Показать панель чатов"}
-                    disabled={!!editingMessageKey || isLoading || !!exportingId}
+                    disabled={globalOperationInProgress}
                  >
                     {isSidebarOpen ? <X size={20} /> : <Menu size={20} />}
                 </button>
@@ -776,7 +928,7 @@ function App() { // No props
                                 id="model-select"
                                 value={selectedModel}
                                 onChange={handleModelChange}
-                                disabled={modelsLoading || isLoading || availableModels.length === 0 || !!editingMessageKey || !!exportingId}
+                                disabled={modelsLoading || isLoading || availableModels.length === 0 || !!editingMessageKey || !!exportingId || !!editingDialogueId}
                                 title={modelsLoading ? "Модели загружаются..." : availableModels.length === 0 ? "Модели недоступны" : "Выберите модель ИИ"}
                             >
                                 {modelsLoading && <option value="" disabled>Загрузка...</option>}
@@ -788,7 +940,7 @@ function App() { // No props
                             <button
                                 className="system-prompt-button"
                                 onClick={handleSetSystemPrompt}
-                                disabled={isLoading || !!editingMessageKey || !!exportingId || !activeDialogueId}
+                                disabled={globalOperationInProgress || !activeDialogueId}
                                 title="Задать/изменить системный промпт для этого чата"
                                 aria-label="Задать системный промпт"
                             >
@@ -832,16 +984,81 @@ function App() { // No props
                                         <>
                                             {msg.role === 'assistant' ? (
                                                 <div className="markdown-content">
-                                                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                                                        {msg.content.trim() + (isLastStreamingMessage ? '▍' : '')}
+                                                    <ReactMarkdown
+                                                        remarkPlugins={[remarkGfm]}
+                                                        components={{
+                                                            code({ node, inline, className, children, ...props }) {
+                                                                const match = /language-(\w+)/.exec(className || '');
+                                                                const lang = match && match[1] ? match[1] : '';
+                                                                let codeContent = String(children).replace(/\n$/, '');
+                                                                if (codeContent.endsWith('▍')) { 
+                                                                    codeContent = codeContent.slice(0, -1);
+                                                                }
+
+                                                                const handleCopyCode = (event: React.MouseEvent<HTMLButtonElement>) => {
+                                                                    handleCopyToClipboard(codeContent, 'local-code', messageKey + '-code', event);
+                                                                };
+
+                                                                return !inline ? (
+                                                                    <div className="code-block-wrapper">
+                                                                        <div className="code-block-header">
+                                                                            <span className="code-block-language">{lang || 'text'}</span>
+                                                                            <button onClick={handleCopyCode} className="copy-code-button" title="Скопировать код">
+                                                                                <Copy size={14} />
+                                                                            </button>
+                                                                        </div>
+                                                                        <SyntaxHighlighter
+                                                                            style={atomDark}
+                                                                            language={lang || 'text'} 
+                                                                            PreTag="div" 
+                                                                            className="syntax-highlighter-pre" 
+                                                                            {...props}
+                                                                        >
+                                                                            {codeContent}
+                                                                        </SyntaxHighlighter>
+                                                                    </div>
+                                                                ) : (
+                                                                    <code className={className} {...props}>
+                                                                        {children}
+                                                                    </code>
+                                                                );
+                                                            },
+                                                        }}
+                                                    >
+                                                        {msg.content.trim()}
                                                     </ReactMarkdown>
+                                                    {isLastStreamingMessage && isLoading && (
+                                                        <span className="streaming-indicator" aria-label="ИИ генерирует ответ">
+                                                            <span>.</span><span>.</span><span>.</span>
+                                                        </span>
+                                                    )}
+                                                    {!isLastStreamingMessage && msg.content.trim() && !editingMessageKey && !isLoading && !exportingId && !editingDialogueId &&(
+                                                        <>
+                                                            <button
+                                                                className={`copy-message-button ${copiedMessageId === messageKey ? 'copied' : ''}`}
+                                                                onClick={() => handleCopyToClipboard(msg.content, 'local-message', messageKey)}
+                                                                title="Скопировать сообщение"
+                                                                aria-label="Скопировать сообщение"
+                                                            >
+                                                                {copiedMessageId === messageKey ? <Check size={14} /> : <Copy size={14} />}
+                                                            </button>
+                                                            <button
+                                                                className="regenerate-button"
+                                                                onClick={() => handleRegenerateResponse(activeDialogueId!, index)}
+                                                                title="Перегенерировать ответ"
+                                                                aria-label="Перегенерировать ответ"
+                                                            >
+                                                                <RefreshCw size={14} />
+                                                            </button>
+                                                        </>
+                                                    )}
                                                 </div>
                                             ) : (
                                                 <p style={{ whiteSpace: 'pre-wrap' }}>
                                                     {msg.content.trim()}
                                                 </p>
                                             )}
-                                             {msg.role === 'user' && !isLoading && !editingMessageKey && !exportingId && (
+                                             {msg.role === 'user' && !isLoading && !editingMessageKey && !exportingId && !editingDialogueId && (
                                                 <button
                                                     className="edit-message-button"
                                                     onClick={() => startEditing(activeDialogueId!, index, msg.content)}
@@ -859,7 +1076,7 @@ function App() { // No props
                      {error && (!exportLink || !copySuccess || copySuccess.includes('Ошибка')) && (
                         <div className="message error-message"> <p>{error}</p> </div>
                      )}
-                     {!isLoading && currentMessages.length === 0 && activeDialogueId && !editingMessageKey && !error && (
+                     {!isLoading && currentMessages.length === 0 && activeDialogueId && !editingMessageKey && !editingDialogueId && !error && (
                          <div className="chat-empty-state">
                              <p>Начните диалог, отправив сообщение. Вы можете задать <button onClick={handleSetSystemPrompt} className="link-button">системный промпт</button> для этого чата.</p>
                          </div>
@@ -873,6 +1090,7 @@ function App() { // No props
                         onKeyDown={handleKeyDown}
                         placeholder={
                              editingMessageKey ? "Завершите редактирование для ввода нового сообщения"
+                             : editingDialogueId ? "Завершите редактирование названия чата"
                              : exportingId ? "Идет экспорт..."
                              : !activeDialogueId ? "Создайте или выберите чат для начала"
                              : modelsLoading ? "Загрузка моделей..."
@@ -881,10 +1099,11 @@ function App() { // No props
                              : "Введите сообщение (Shift+Enter для новой строки)"
                          }
                         rows={textAreaRows}
-                        disabled={isLoading || modelsLoading || !activeDialogueId || (!modelsLoading && !selectedModel) || !!editingMessageKey || !!exportingId}
+                        disabled={globalOperationInProgress || modelsLoading || !activeDialogueId || (!modelsLoading && !selectedModel)}
                         title={
                             isLoading ? "ИИ генерирует ответ..."
                             : editingMessageKey ? "Завершите редактирование для ввода нового сообщения"
+                            : editingDialogueId ? "Завершите редактирование названия чата"
                             : !!exportingId ? "Дождитесь завершения экспорта"
                             : !activeDialogueId ? "Не выбран чат"
                             : !selectedModel && !modelsLoading ? "Не выбрана модель ИИ"
@@ -898,10 +1117,11 @@ function App() { // No props
                          <button
                              onClick={sendMessage}
                              disabled={
-                                isLoading || modelsLoading || !activeDialogueId || !selectedModel || !userInput.trim() || !!editingMessageKey || !!exportingId
+                                globalOperationInProgress || modelsLoading || !activeDialogueId || !selectedModel || !userInput.trim()
                              }
                              title={
-                                editingMessageKey ? "Завершите редактирование"
+                                editingMessageKey ? "Завершите редактирование сообщения"
+                                : editingDialogueId ? "Завершите редактирование названия"
                                 : !!exportingId ? "Экспорт выполняется..."
                                 : !activeDialogueId ? "Не выбран чат"
                                 : !selectedModel && !modelsLoading ? "Не выбрана модель"
@@ -913,6 +1133,16 @@ function App() { // No props
                     )}
                 </div>
             </div> {/* End Chat Main */}
+
+            {currentActiveDialogue && (
+                <SystemPromptModal
+                    isOpen={isSystemPromptModalOpen}
+                    currentPrompt={currentActiveDialogue.systemPrompt || ''}
+                    onClose={() => setIsSystemPromptModalOpen(false)}
+                    onSave={handleSaveSystemPromptFromModal}
+                    isLoading={isLoading || !!editingMessageKey || !!exportingId || !!editingDialogueId}
+                />
+            )}
         </div> // End App Container
     );
 }
