@@ -1,6 +1,4 @@
 --- START OF FILE App.tsx ---
-
-// --- START OF FILE App.tsx ---
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 // Import necessary icons
 import { PlusCircle, Trash, Menu, X, Send, Share2, Copy, Edit2, Check, Info, RefreshCw, Edit3 } from 'react-feather'; // Added RefreshCw, Edit3
