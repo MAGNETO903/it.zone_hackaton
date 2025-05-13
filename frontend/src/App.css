@@ -1,3 +1,5 @@
+--- START OF FILE App.css ---
+
 /* --- START OF FILE App.css --- */
 /* ... (Keep all previous styles: body, *, utils, app-container, sidebar, etc.) ... */
 body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif; background-color: var(--tg-theme-bg-color, #fff); color: var(--tg-theme-text-color, #000); overscroll-behavior: none; font-size: 16px; }
@@ -117,8 +119,30 @@ body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'R
 .markdown-content ul, .markdown-content ol { padding-left: 2em; margin-bottom: 1em; }
 .markdown-content li { margin-bottom: 0.25em; }
 .markdown-content blockquote { margin-left: 0; margin-right: 0; padding-left: 1em; border-left: 3px solid var(--tg-theme-hint-color, #ccc); color: var(--tg-theme-hint-color, #555); margin-bottom: 1em; }
-.markdown-content code { background-color: rgba(128, 128, 128, 0.15); padding: 0.2em 0.4em; font-size: 0.9em; border-radius: 4px; font-family: 'Courier New', Courier, monospace; color: var(--tg-theme-text-color, #000); }
-.markdown-content pre { border-radius: 6px; margin-bottom: 1em; overflow-x: auto; font-size: 0.9em; padding: 0.8em 1em; background-color: rgba(128,128,128,0.05); }
+
+.markdown-content code { /* Styles for inline code */
+  background-color: rgba(128, 128, 128, 0.15);
+  padding: 0.2em 0.4em;
+  font-size: 0.9em;
+  border-radius: 4px;
+  font-family: 'Courier New', Courier, monospace;
+  color: var(--tg-theme-text-color, #000);
+  overflow-wrap: break-word; /* ADDED: Prefer over word-break for standard compliance */
+  word-break: break-word; /* Fallback / alternative, ensures breaking of long words */
+}
+
+.markdown-content pre { /* Styles for <pre> blocks (raw or from markdown) */
+  border-radius: 6px;
+  margin-bottom: 1em;
+  overflow-x: auto; /* Keep for very long unbreakable lines, scroll will appear */
+  font-size: 0.9em;
+  padding: 0.8em 1em;
+  background-color: rgba(128,128,128,0.05);
+  white-space: pre-wrap;   /* ADDED: Allows wrapping while preserving formatting */
+  overflow-wrap: break-word;   /* ADDED: Ensures long words/strings wrap */
+  word-break: break-word; /* Fallback / alternative */
+}
+
 .markdown-content table { border-collapse: collapse; margin-bottom: 1em; width: auto; font-size: 0.9em; }
 .markdown-content th, .markdown-content td { border: 1px solid var(--tg-theme-hint-color, #ccc); padding: 0.5em 0.75em; text-align: left; }
 .markdown-content th { background-color: rgba(128, 128, 128, 0.05); font-weight: 600; }
@@ -144,8 +168,22 @@ body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'R
 .copy-code-button { background: none; border: none; color: #bbb; cursor: pointer; padding: 3px; display: flex; align-items: center; border-radius: 4px; transition: color 0.2s ease, background-color 0.2s ease; }
 .copy-code-button:hover { color: #fff; background-color: rgba(255,255,255,0.1); }
 .copy-code-button svg { display: block; }
-.syntax-highlighter-pre { margin: 0 !important; overflow: auto !important; border-radius: 0 0 6px 6px !important; }
-.syntax-highlighter-pre > code, .syntax-highlighter-pre > pre > code { font-family: 'Courier New', Courier, monospace !important; font-size: 0.9em !important; line-height: 1.4 !important; }
+
+.syntax-highlighter-pre { /* This is the div PreTag from react-syntax-highlighter */
+  margin: 0 !important;
+  overflow: auto !important; /* Keep for fallback scrollbars if content is truly unbreakable/very tall */
+  border-radius: 0 0 6px 6px !important;
+  white-space: pre-wrap !important;       /* ADDED: Primary rule for wrapping code */
+  overflow-wrap: break-word !important;   /* ADDED: Helps break long words/strings within lines */
+  word-break: break-word !important; /* Fallback / alternative for robust word breaking */
+}
+
+.syntax-highlighter-pre > code, .syntax-highlighter-pre > pre > code {
+  font-family: 'Courier New', Courier, monospace !important;
+  font-size: 0.9em !important;
+  line-height: 1.4 !important;
+  /* Wrapping properties are better on the parent .syntax-highlighter-pre (the div) */
+}
 /* --- END Styles for Markdown Content & Message Actions --- */
 
 /* Dialogue Title Editing Styles */
