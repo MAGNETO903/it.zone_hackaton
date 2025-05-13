@@ -1,3 +1,5 @@
+--- START OF FILE App.tsx ---
+
 // --- START OF FILE App.tsx ---
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 // Import necessary icons
@@ -771,10 +773,9 @@ function App() { // No props
 
     const handleSaveDialogueTitle = () => {
         if (!editingDialogueId || !editingDialogueTitle.trim()) {
-            // If title is empty, revert to original or keep it (current cancels)
             const originalDialogue = dialogues.find(d => d.id === editingDialogueId);
             if (originalDialogue && !editingDialogueTitle.trim()) {
-                setEditingDialogueTitle(originalDialogue.title); // Revert to original if new is empty
+                setEditingDialogueTitle(originalDialogue.title); 
                  setDialogues(prevDialogues =>
                      prevDialogues.map(d =>
                          d.id === editingDialogueId ? { ...d, title: originalDialogue.title } : d
@@ -797,7 +798,7 @@ function App() { // No props
 
     const handleTitleEditKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
         if (event.key === 'Enter') {
-            event.preventDefault(); // Prevent form submission if any
+            event.preventDefault(); 
             handleSaveDialogueTitle();
         } else if (event.key === 'Escape') {
             cancelEditingDialogueTitle();
@@ -987,7 +988,8 @@ function App() { // No props
                                                     <ReactMarkdown
                                                         remarkPlugins={[remarkGfm]}
                                                         components={{
-                                                            code({ node, inline, className, children, ...props }) {
+                                                            code({ node, className, children, ...props }) {
+                                                                const isInline = !className || !className.startsWith('language-');
                                                                 const match = /language-(\w+)/.exec(className || '');
                                                                 const lang = match && match[1] ? match[1] : '';
                                                                 let codeContent = String(children).replace(/\n$/, '');
@@ -998,21 +1000,27 @@ function App() { // No props
                                                                 const handleCopyCode = (event: React.MouseEvent<HTMLButtonElement>) => {
                                                                     handleCopyToClipboard(codeContent, 'local-code', messageKey + '-code', event);
                                                                 };
+                                                                
+                                                                // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                                                                const { node: _node, ...restProps } = props as any; // Filter out node from props
+                                                                const syntaxHighlighterProps: any = { ...restProps };
+                                                                delete syntaxHighlighterProps.className; // Remove className if passed in props
 
-                                                                return !inline ? (
+
+                                                                return !isInline ? (
                                                                     <div className="code-block-wrapper">
                                                                         <div className="code-block-header">
-                                                                            <span className="code-block-language">{lang || 'text'}</span>
+                                                                            <span className="code-block-language">{lang || 'текст'}</span>
                                                                             <button onClick={handleCopyCode} className="copy-code-button" title="Скопировать код">
                                                                                 <Copy size={14} />
                                                                             </button>
                                                                         </div>
                                                                         <SyntaxHighlighter
-                                                                            style={atomDark}
+                                                                            style={atomDark as any}
                                                                             language={lang || 'text'} 
                                                                             PreTag="div" 
                                                                             className="syntax-highlighter-pre" 
-                                                                            {...props}
+                                                                            {...syntaxHighlighterProps}
                                                                         >
                                                                             {codeContent}
                                                                         </SyntaxHighlighter>
